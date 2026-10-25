@@ -1,0 +1,1698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yona Light Control</title>
+<style>
+  :root {
+    --bg: #f4f2ee; --panel: #ffffff; --ink: #1d1c1a; --muted: #6b675f; --line: #e2ddd3;
+    --accent: #e8752a; --accent-ink: #ffffff; --ok: #2f8f4e; --warn: #c98a10; --bad: #c4382c;
+    --chip: #efebe4; --ring: #2a2724; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: #141413; --panel: #1f1e1c; --ink: #f0ede7; --muted: #a29d93; --line: #34322e;
+    --accent: #f08a3e; --accent-ink: #1a1208; --ok: #4cbf70; --warn: #e3a52c; --bad: #ef5b4c;
+    --chip: #2a2926; --ring: #0c0c0b; --shadow: 0 1px 2px rgba(0,0,0,.4);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --panel: #1f1e1c; --ink: #f0ede7; --muted: #a29d93; --line: #34322e;
+      --accent: #f08a3e; --accent-ink: #1a1208; --ok: #4cbf70; --warn: #e3a52c; --bad: #ef5b4c;
+      --chip: #2a2926; --ring: #0c0c0b; --shadow: 0 1px 2px rgba(0,0,0,.4);
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line);
+           background: var(--panel); position: sticky; top: 0; z-index: 3; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header .spacer { flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+  #connLabel { color: var(--muted); font-size: 14px; }
+  #batPill { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; padding: 4px 10px;
+             border-radius: 999px; background: var(--chip); border: 1px solid var(--line); }
+  #batPill.low { color: var(--bad); border-color: var(--bad); }
+  nav.tabs { display: flex; gap: 4px; max-width: 1060px; margin: 14px auto 0; padding: 0 16px; }
+  nav.tabs button { border-radius: 10px 10px 0 0; border-bottom: 0; }
+  nav.tabs button[aria-selected="true"] { background: var(--panel); font-weight: 600; }
+  main { max-width: 1060px; margin: 0 auto; padding: 0 16px 40px; }
+  .page { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); padding-top: 16px;
+          border-top: 1px solid var(--line); }
+  .page[hidden] { display: none; }
+  @media (max-width: 820px) { .page { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+            box-shadow: var(--shadow); min-width: 0; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+               margin: 0 0 12px; font-weight: 600; }
+  .stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  .full { grid-column: 1 / -1; }
+  button, select, input[type="text"] { font: inherit; border: 1px solid var(--line); background: var(--chip);
+           color: var(--ink); border-radius: 10px; padding: 8px 14px; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button:disabled, select:disabled, input:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary, button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary { font-weight: 600; }
+  button.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
+  button.danger.armed { background: var(--bad); color: #fff; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .grid8 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .grid8 button { padding: 10px 6px; text-transform: capitalize; display: flex; flex-direction: column;
+                  align-items: center; gap: 4px; font-size: 14px; }
+  .grid8 svg { width: 20px; height: 20px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 7px 12px; text-transform: capitalize; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  /* TURBO: the one control drawn in danger red, like a switch with a guard. */
+  button.turbo { color: var(--bad); border: 2px solid var(--bad); background: transparent; font-weight: 800;
+                 letter-spacing: .1em; text-transform: uppercase; font-size: 13px; }
+  button.turbo[aria-pressed="true"] { background: var(--bad); color: #fff;
+                 box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 30%, transparent), 0 0 18px var(--bad); }
+  .row { display: grid; grid-template-columns: 110px 1fr 68px; align-items: center; gap: 12px; margin: 10px 0; }
+  .row > label, .lbl { color: var(--muted); font-size: 14px; }
+  .row output { text-align: right; font-variant-numeric: tabular-nums; }
+  .line { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }
+  input[type="color"] { width: 52px; height: 38px; border: 1px solid var(--line); border-radius: 10px; padding: 2px;
+                        background: var(--chip); cursor: pointer; }
+  .swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+  .swatch { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+  .swatch.w { background: radial-gradient(circle at 35% 35%, #fff, #ffe4b8); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* The ring: 6 pixels around a dark disc, like the light's diffuser. */
+  .ring { position: relative; border-radius: 50%; background: var(--ring); flex: none; }
+  .ring span { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+  .page.light { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 1000px) { .page.light { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 660px) { .page.light { grid-template-columns: 1fr; } }
+  .head, .memhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px;
+                    flex-wrap: wrap; }
+  .head h2, .memhead h2 { margin: 0; }
+  .readout { font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); background: var(--chip);
+             border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; text-transform: uppercase;
+             letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .ring.big { width: min(200px, 70%); aspect-ratio: 1; margin: 4px auto 14px; box-shadow: inset 0 0 0 3px var(--line); }
+  .ring.big span { width: 15%; height: 15%; border-radius: 22%; }
+  .power { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .power button { padding: 10px 8px; font-weight: 600; display: flex; flex-direction: column; align-items: center; }
+  .power small { font-weight: 400; font-size: 12px; opacity: .8; }
+  #layerNote { min-height: 1.4em; }
+  /* Full-colour pad: hue across (the rainbow), paler toward white going down. */
+  .pad { position: relative; height: 120px; border-radius: 10px; border: 1px solid var(--line); overflow: hidden;
+         margin-bottom: 10px; touch-action: none; cursor: crosshair; }
+  .pad canvas { width: 100%; height: 100%; display: block; }
+  .pad .mark { position: absolute; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff;
+               box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 1px 4px rgba(0,0,0,.5); transform: translate(-50%, -50%);
+               pointer-events: none; }
+  /* Spread preview: the band as the colours run round the ring, and the 6 LEDs it gives. */
+  .spreadview { display: grid; gap: 6px; margin: 4px 0 10px; }
+  .gradbar { height: 14px; border-radius: 7px; border: 1px solid var(--line); }
+  .segs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .segs span { height: 18px; border-radius: 5px; border: 1px solid var(--line); }
+  /* Memory strip: the presets across the top, as in the V0 mockup. */
+  .memory { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 14px; align-items: center; }
+  .memory .chips { grid-column: 1 / -1; grid-row: 2; }
+  .memory > * { min-width: 0; }
+  .memory .memhead { justify-content: flex-start; margin: 0; }
+  .chips { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+  .chip { display: flex; align-items: center; gap: 6px; padding: 6px 7px; border-radius: 10px; min-width: 0;
+          font-size: 13px; text-align: left; }
+  .chip .ring { width: 26px; height: 26px; }
+  .chip .ring span { width: 6px; height: 6px; }
+  .chip .lines { display: grid; gap: 2px; min-width: 0; flex: 1; }
+  .chip .txt { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .chip .icons { display: flex; align-items: center; gap: 4px; height: 14px; color: var(--muted); }
+  .chip .icons svg { width: 14px; height: 14px; display: block; }
+  .chip .icons .src { width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--line); }
+  .chip .icons b { font-weight: 600; font-size: 13px; line-height: 1; }
+  .chip .icons em { font: 600 11px/1 ui-monospace, Menlo, monospace; font-style: normal; }
+  .chip .icons .fav { color: var(--accent); margin-left: auto; }
+  .chip.empty { opacity: .55; }
+  .chip.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .chip.current .txt { color: var(--accent); font-weight: 600; }
+  .slotctl { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .slotctl button { flex: none; padding: 7px 10px; }
+  .slotctl input { width: 130px; padding: 7px 10px; }
+  .star.on { color: var(--accent); border-color: var(--accent); background: transparent; }
+  @media (max-width: 1000px) {
+    .memory { grid-template-columns: 1fr; }
+    .memory .chips { grid-row: auto; }
+    .chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .slotctl input { flex: 1; width: auto; min-width: 0; }
+  }
+  @media (max-width: 420px) { .chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* Emergency band: hazard stripe on top. */
+  .emergency { border-top: 0; position: relative; overflow: hidden; padding-top: 24px; }
+  .emergency::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 8px;
+    background: repeating-linear-gradient(-45deg, var(--accent) 0 12px, transparent 12px 24px); }
+  .emgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .emgrid { grid-template-columns: 1fr; } }
+  .embox { border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+  .embox h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+  button.big { width: 100%; padding: 14px; font-weight: 700; letter-spacing: .06em; font-size: 16px; }
+  .morseline input { flex: 1; min-width: 0; text-transform: uppercase; font-family: ui-monospace, Menlo, monospace;
+                     letter-spacing: .12em; }
+  .code { font: 15px/1.6 ui-monospace, Menlo, monospace; background: var(--chip); border: 1px solid var(--line);
+          border-radius: 8px; padding: 8px 10px; min-height: 2.6em; color: var(--accent); word-break: break-word; }
+  button.toggle[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #morseBtn { margin-top: 6px; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; margin: 0; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .bmap { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+  .bmap select { width: 100%; }
+  #banner { display: none; border-radius: 12px; padding: 12px 16px; border: 1px solid var(--bad); margin: 14px auto 0;
+            max-width: 1028px; background: color-mix(in srgb, var(--bad) 12%, var(--panel)); }
+  #banner.show { display: block; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+           padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none;
+           transition: opacity .2s; max-width: calc(100% - 32px); z-index: 5; }
+  #toast.show { opacity: .95; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+  #log { margin-top: 10px; height: 220px; overflow: auto; background: var(--chip); border-radius: 8px; padding: 8px 10px;
+         font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
+  #log .tx { color: var(--accent); } #log .err { color: var(--bad); } #log .txt { color: var(--muted); }
+  .hide { display: none !important; }
+  @media (max-width: 520px) { .row { grid-template-columns: 84px 1fr 60px; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="connDot" aria-hidden="true"></span>
+  <h1>Yona Light</h1>
+  <span id="connLabel">Not connected</span>
+  <span class="spacer"></span>
+  <span id="batPill" title="Battery">--</span>
+  <button id="themeBtn" type="button" title="Appearance: follow the system, or force dark or light">Auto</button>
+  <button id="connectBtn" type="button" class="primary" title="Connect over a USB cable">USB</button>
+  <button id="bleBtn" type="button" class="primary" title="Connect over Bluetooth">Bluetooth</button>
+</header>
+<div id="banner" role="alert"></div>
+
+<nav class="tabs" role="tablist">
+  <button type="button" role="tab" id="tabLight" aria-selected="true" aria-controls="pageLight">Light</button>
+  <button type="button" role="tab" id="tabSettings" aria-selected="false" aria-controls="pageSettings">Settings</button>
+</nav>
+
+<main>
+<fieldset id="controls" disabled>
+  <!-- =============================== LIGHT =============================== -->
+  <div class="page light" id="pageLight" role="tabpanel" aria-labelledby="tabLight">
+    <section class="full memory">
+      <div class="memhead">
+        <h2>Memory</h2>
+        <span class="readout" id="slotReadout">no slot</span>
+      </div>
+      <div class="chips" id="slots" role="listbox" aria-label="Memory slots"></div>
+      <div class="slotctl">
+        <input type="text" id="slotName" aria-label="Name of the selected slot" spellcheck="false">
+        <button type="button" id="slotFav" class="star" aria-pressed="false" title="Favourite: the button's short press steps through these">☆</button>
+        <button type="button" id="slotStore" class="primary" title="Save what the light shows now into the selected slot">Store</button>
+        <button type="button" id="slotClear">Clear</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="head"><h2>Output</h2><span class="readout" id="lookReadout">--</span></div>
+      <div class="ring big" id="liveRing" role="img" aria-label="Live preview of the light"></div>
+      <div class="power">
+        <button type="button" id="powerBtn" aria-pressed="false">Off</button>
+        <button type="button" id="flashBtn" aria-pressed="false">Flashlight<small>white chip only</small></button>
+      </div>
+      <div class="row">
+        <label for="brightness">Brightness</label>
+        <input type="range" id="brightness" min="0" max="100" value="60">
+        <output id="brightnessOut">60%</output>
+      </div>
+      <p class="note" id="layerNote"></p>
+    </section>
+
+    <section>
+      <div class="head"><h2>Colour</h2><div class="seg" id="sourceSeg"></div></div>
+      <div class="pad" id="hsPad" role="slider" tabindex="0" aria-label="Colour: drag across for hue, down for paler"
+           aria-valuetext="">
+        <canvas id="hsCanvas" aria-hidden="true"></canvas>
+        <span class="mark" id="hsMark" aria-hidden="true"></span>
+      </div>
+      <div class="line hide" id="padTargetLine"><span class="lbl">Picker sets</span><div class="seg" id="padTarget"></div></div>
+      <div id="solidBox">
+        <div class="line">
+          <input type="color" id="colour" value="#ff7800" aria-label="Colour">
+          <div class="swatches" id="swatches"></div>
+        </div>
+        <div class="row">
+          <label for="white">White chip</label>
+          <input type="range" id="white" min="0" max="255" value="0">
+          <output id="whiteOut">0</output>
+        </div>
+      </div>
+      <div id="gradBox" class="hide">
+        <div class="line">
+          <input type="color" id="c1" value="#ff3d00" aria-label="Gradient colour 1">
+          <button type="button" id="swapBtn" title="Swap the two colours">⇄</button>
+          <input type="color" id="c2" value="#ffb000" aria-label="Gradient colour 2">
+        </div>
+        <div class="spreadview" aria-hidden="true">
+          <div class="gradbar" id="gradBar"></div>
+          <div class="segs" id="gradSegs"></div>
+        </div>
+        <div class="line"><span class="lbl">Spread</span><div class="seg" id="spreadSeg"></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Motion</h2>
+      <div class="grid8" id="effects"></div>
+      <div class="row">
+        <label for="speed">Speed</label>
+        <input type="range" id="speed" min="0" max="100" value="35">
+        <output id="speedOut">35</output>
+      </div>
+      <div class="line"><div class="seg" id="speedSeg"></div></div>
+      <div class="line"><div class="seg" id="dirSeg"></div></div>
+      <div class="line">
+        <button type="button" id="turboBtn" class="turbo" aria-pressed="false"
+                title="Strobe up to 18 flashes a second instead of 4">TURBO strobe</button>
+        <span class="lbl" id="strobeRate" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="full emergency">
+      <h2>Emergency</h2>
+      <div class="emgrid">
+        <div class="embox">
+          <h3>Find Yona</h3>
+          <button type="button" id="findBtn" class="big primary" aria-pressed="false">▶ Find Yona</button>
+          <p class="note">Red/white strobe and double chirps for up to 2 minutes, even with the light off. Any press of the light's button stops it.</p>
+          <div class="row">
+            <label for="volume">Chirp volume</label>
+            <input type="range" id="volume" min="0" max="100" value="35">
+            <output id="volumeOut">35%</output>
+          </div>
+          <div class="actions">
+            <button type="button" id="chirpBtn">Test chirp</button>
+            <button type="button" id="gaugeBtn">Battery on the light</button>
+          </div>
+        </div>
+        <div class="embox">
+          <h3>Morse beacon</h3>
+          <div class="line morseline">
+            <input type="text" id="morseText" maxlength="32" aria-label="Morse message" spellcheck="false">
+            <button type="button" class="preset" data-text="YONA">Yona</button>
+            <button type="button" class="preset" data-text="SOS">SOS</button>
+          </div>
+          <div class="code" id="morseCode" aria-label="The message in Morse"></div>
+          <p class="note" id="morseNote"></p>
+          <div class="row">
+            <label for="wpm">Speed</label>
+            <input type="range" id="wpm" min="5" max="25" value="12">
+            <output id="wpmOut">12 wpm</output>
+          </div>
+          <div class="line">
+            <span class="lbl">Send on</span>
+            <button type="button" class="toggle" id="mLight" aria-pressed="false">Light</button>
+            <button type="button" class="toggle" id="mBuzzer" aria-pressed="false">Buzzer</button>
+            <button type="button" class="toggle" id="mRepeat" aria-pressed="false">Repeat</button>
+          </div>
+          <button type="button" id="morseBtn" class="big" aria-pressed="false">▶ Send</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================= SETTINGS ============================= -->
+  <div class="page" id="pageSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+    <div class="stack">
+      <section>
+        <h2>Safety</h2>
+        <div class="row">
+          <label for="cap">Power cap</label>
+          <input type="range" id="cap" min="10" max="100" value="70">
+          <output id="capOut">70%</output>
+        </div>
+        <p class="note" id="capNote"></p>
+        <div class="line">
+          <label class="lbl" for="autoOff">Auto-off on battery</label>
+          <select id="autoOff"></select>
+        </div>
+        <div class="line">
+          <label class="lbl" for="lowBat">Low battery</label>
+          <select id="lowBat"></select>
+        </div>
+        <p class="note">Low-battery steps only act on battery power, after the level has been past the line for 10 s. In the "off" band the light won't turn back on until it's charged.</p>
+      </section>
+
+      <section>
+        <h2>Button</h2>
+        <div class="bmap" id="bmap"></div>
+        <p class="note">Holding the button passes two marks: a tick at 1 s (let go now for the long-press action), then the hold action fires at 3 s. Factory default: long = Find, hold = off, so off is the deliberate one. With the light off, any press except one mapped to Find turns it on. Setting double press to "Nothing" makes a single press act at once (no 0.35 s wait).</p>
+      </section>
+
+    </div>
+
+    <div class="stack">
+      <section>
+        <h2>Diagnostics</h2>
+        <dl class="kv">
+          <dt>Battery</dt><dd id="batV">--</dd>
+          <dt>Low-battery state</dt><dd id="lowState">--</dd>
+          <dt>USB power</dt><dd id="usb">--</dd>
+          <dt>Charging</dt><dd id="charging">--</dd>
+          <dt>LED rail</dt><dd id="rail">--</dd>
+          <dt>LED power (estimate)</dt><dd id="ledW">--</dd>
+          <dt>Showing</dt><dd id="layer">--</dd>
+          <dt>Auto-off in</dt><dd id="autoOffIn">--</dd>
+          <dt>Chip temperature</dt><dd id="temp">--</dd>
+          <dt>Connected by</dt><dd id="linkKind">--</dd>
+          <dt>Firmware</dt><dd id="fw">--</dd>
+          <dt>Board</dt><dd id="board">--</dd>
+          <dt>Up for</dt><dd id="uptime">--</dd>
+          <dt>Last reset</dt><dd id="boot">--</dd>
+          <dt>Free memory</dt><dd id="heap">--</dd>
+        </dl>
+        <p class="note" id="batNote"></p>
+      </section>
+
+      <section>
+        <h2>Page</h2>
+        <div class="line">
+          <span class="lbl">Animate memory chips</span>
+          <button type="button" class="toggle" id="animChips" aria-pressed="true">On</button>
+        </div>
+        <p class="note">Each slot chip plays its saved look, like the Output ring. Off shows still pictures. This is a setting of this browser, not the light.</p>
+      </section>
+
+      <section>
+        <h2>Reset</h2>
+        <p class="note" style="margin-top:0">Puts every setting and all 8 memory slots back to the factory defaults.</p>
+        <div class="actions" style="margin-top:10px"><button type="button" id="resetBtn" class="danger">Factory reset</button></div>
+      </section>
+
+      <section>
+        <details id="logDetails">
+          <summary>Serial log</summary>
+          <div id="log" aria-live="off"></div>
+        </details>
+      </section>
+    </div>
+  </div>
+</fieldset>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+// ----------------------------------------------------------------- config ---
+const PROTOCOL_VERSION = 2;
+const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
+const HELLO_TIMEOUT_MS = 2500;
+const HELLO_ATTEMPTS = 3;
+const HEARTBEAT_MS = 3000;          // keeps the firmware in JSON mode (it gives up after 10 s)
+const STALE_AFTER_MS = 7000;        // no message for this long = warn
+const SEND_INTERVAL_MS = 40;        // coalesce slider drags to ~25 updates/s
+const EDIT_GRACE_MS = 600;          // don't overwrite a control the user is touching
+const MAX_LINE_CHARS = 4096;        // guard against a stream with no newlines
+const LOG_LIMIT = 300;
+const RESET_ARM_MS = 4000;
+const SPEED_PRESETS = [{ name: "Calm", speed: 10 }, { name: "Walk", speed: 30 }, { name: "Brisk", speed: 55 },
+                       { name: "Party", speed: 90 }];
+const AUTO_OFF_CHOICES = [0, 5, 10, 15, 30, 45, 60, 90, 120];
+const SWATCHES = [
+  { name: "Red", rgbw: [255, 0, 0, 0] }, { name: "Amber", rgbw: [255, 120, 0, 0] },
+  { name: "Yellow", rgbw: [255, 210, 0, 0] }, { name: "Green", rgbw: [0, 255, 40, 0] },
+  { name: "Cyan", rgbw: [0, 220, 255, 0] }, { name: "Blue", rgbw: [0, 40, 255, 0] },
+  { name: "Purple", rgbw: [170, 0, 255, 0] }, { name: "Pink", rgbw: [255, 40, 120, 0] },
+  { name: "Warm white (white chip only)", rgbw: [0, 0, 0, 255], white: true },
+];
+// Used until the light's hello says otherwise (it lists its own names and limits).
+const DEFAULT_LISTS = {
+  sources: ["solid", "gradient"], spreads: ["linear", "mirror", "split"],
+  effects: ["static", "pulse", "strobe", "chase", "spin", "wave", "rainbow", "police"],
+  directions: ["cw", "ccw", "bounce"], gestures: ["short", "double", "long", "hold"],
+  actions: ["next_fav", "prev_fav", "flashlight", "power", "brightness_step", "find", "morse_yona", "morse_sos",
+            "gauge", "nothing"],
+  lowBattery: ["dim20_blink10_off5", "blink15_off5", "off10"],
+};
+const DEFAULT_LIMITS = { brightnessMax: 100, speedMax: 100, wpmMin: 5, wpmMax: 25, capMin: 10, capMax: 100,
+                         autoOffMax: 120, volumeMax: 100, slots: 8, slotNameMax: 16, morseMax: 32, budgetW: 0.5, leds: 6,
+                         strobeMaxHz: 4, turboMaxHz: 18 };
+const LABELS = {
+  next_fav: "Next favourite", prev_fav: "Previous favourite", flashlight: "Flashlight on/off", power: "Power off",
+  brightness_step: "Brightness step (20–100%)", find: "Find", morse_yona: "Morse message", morse_sos: "Morse SOS",
+  gauge: "Battery gauge", nothing: "Nothing",
+  short: "Short press", double: "Double press", long: "Long press (let go after 1 s)", hold: "Hold (3 s)",
+  dim20_blink10_off5: "Standard: dim at 20%, blink at 10%, off at 5%",
+  blink15_off5: "Gentle: blink at 15%, off at 5%", off10: "Minimal: off at 10%",
+  cw: "↻ cw", ccw: "↺ ccw", bounce: "⇄ bounce",
+};
+// What the LEDs are drawing (status.layer), for the diagnostics list.
+const LAYER_NAMES = { flash: "boot colour", find: "Find", morse: "Morse", gauge: "battery gauge",
+                      flashlight: "flashlight", look: "the look", off: "nothing (off)" };
+const LAYER_LABELS = { flash: "Boot colour", find: "Find is running", morse: "Playing Morse",
+                       gauge: "Showing the battery gauge", flashlight: "Flashlight", look: "", off: "" };
+// 20×20 glyphs for the effects (stroke icons, coloured by CSS currentColor).
+const ICONS = {
+  static: '<circle cx="10" cy="10" r="5" fill="currentColor"/>',
+  pulse: '<circle cx="10" cy="10" r="3" fill="currentColor"/><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".5"/>',
+  strobe: '<path d="M11 2 5 11h4l-1 7 6-9h-4z" fill="currentColor"/>',
+  chase: '<circle cx="15" cy="10" r="3" fill="currentColor"/><circle cx="9" cy="10" r="2" fill="currentColor" opacity=".55"/><circle cx="4" cy="10" r="1.4" fill="currentColor" opacity=".3"/>',
+  spin: '<path d="M16 10a6 6 0 1 1-2-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M15 2v4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  wave: '<path d="M2 10c2.5-5 5.5-5 8 0s5.5 5 8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  rainbow: '<path d="M3 15a7 7 0 0 1 14 0" fill="none" stroke="#e34" stroke-width="2"/><path d="M6 15a4 4 0 0 1 8 0" fill="none" stroke="#3a6" stroke-width="2"/><path d="M8.5 15a1.5 1.5 0 0 1 3 0" fill="none" stroke="#36d" stroke-width="2"/>',
+  police: '<path d="M10 4a6 6 0 0 0 0 12z" fill="#e33"/><path d="M10 4a6 6 0 0 1 0 12z" fill="#36f"/>',
+};
+const svg = (name) => `<svg viewBox="0 0 20 20" aria-hidden="true">${ICONS[name] ?? ICONS.static}</svg>`;
+
+// ------------------------------------------------------------------- dom ---
+const $ = (id) => document.getElementById(id);
+const ui = {};
+for (const id of ["connectBtn", "bleBtn", "connDot", "connLabel", "banner", "controls", "batPill", "tabLight", "tabSettings",
+  "pageLight", "pageSettings", "liveRing", "powerBtn", "flashBtn", "brightness", "brightnessOut", "layerNote",
+  "sourceSeg", "solidBox", "gradBox", "colour", "swatches", "white", "whiteOut", "c1", "c2", "swapBtn", "spreadSeg",
+  "effects", "speed", "speedOut", "dirSeg", "slots", "findBtn", "morseBtn", "chirpBtn", "gaugeBtn", "cap", "capOut",
+  "capNote", "autoOff", "lowBat", "bmap", "morseText", "morseNote", "wpm", "wpmOut", "mLight", "mBuzzer", "mRepeat",
+  "volume", "volumeOut", "slotReadout", "slotName", "slotFav", "slotStore", "slotClear", "lookReadout", "gradBar",
+  "morseCode", "speedSeg", "animChips", "linkKind", "turboBtn", "strobeRate", "hsPad", "hsCanvas", "hsMark", "padTargetLine", "padTarget", "gradSegs", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn",
+  "temp", "fw", "board", "uptime", "boot", "heap", "batNote", "resetBtn", "log", "toast"]) ui[id] = $(id);
+
+// ------------------------------------------------------------- utilities ---
+const clampInt = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
+const hexToRgb = (hex) => {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [0, 0, 0];
+};
+const rgbToHex = (c) => "#" + c.slice(0, 3).map((v) => clampInt(v, 0, 255).toString(16).padStart(2, "0")).join("");
+const fmtDuration = (s) => {
+  if (!Number.isFinite(s)) return "--";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+  return h ? `${h} h ${m} min` : m ? `${m} min ${sec} s` : `${sec} s`;
+};
+const isRgbw = (c) => Array.isArray(c) && c.length === 4 && c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255);
+const isLook = (l) => l && typeof l === "object" && isRgbw(l.color) && isRgbw(l.c1) && isRgbw(l.c2) &&
+  typeof l.effect === "string" && typeof l.source === "string" && Number.isInteger(l.speed);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const label = (k) => LABELS[k] ?? String(k).replace(/_/g, " ");
+// Same cleaning rule as the firmware (model::sanitizeMorseText).
+const cleanMorse = (t) => String(t).toUpperCase().replace(/[^A-Z0-9 ]/g, "").replace(/ +/g, " ").trim().slice(0, 32).trim();
+
+let toastTimer = 0;
+function toast(msg) {
+  ui.toast.textContent = msg;
+  ui.toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => ui.toast.classList.remove("show"), 3500);
+}
+function showBanner(text) {
+  ui.banner.textContent = text;
+  ui.banner.classList.toggle("show", Boolean(text));
+}
+function log(text, cls = "") {
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = text;
+  ui.log.appendChild(line);
+  while (ui.log.childElementCount > LOG_LIMIT) ui.log.firstElementChild.remove();
+  ui.log.scrollTop = ui.log.scrollHeight;
+}
+
+// ---------------------------------------------------------- light maths ---
+// A port of effects.cpp, so the preview and the slot rings match the light.
+const HZ_MIN = 0.04, HZ_SPAN = 2.4, POLICE_HZ_MAX = 1.0, STROBE_ON_S = 0.06, TURBO_ON_S = 0.025, MAX_DT_MS = 100;
+// Strobe's own scale, as effects.cpp: regular up to 4 flashes/s, TURBO 4 to 18.
+function strobeHz(speed) {
+  const f = Math.min(speed, 100) / 100, L = app.limits;
+  return app.settings?.turboStrobe ? 4 + (L.turboMaxHz - 4) * f : HZ_MIN + (L.strobeMaxHz - HZ_MIN) * f;
+}
+const speedHz = (s) => HZ_MIN + HZ_SPAN * Math.min(s, 100) / 100;
+const frac = (x) => x - Math.floor(x);
+const mixC = (a, b, f) => a.map((v, i) => Math.round(v + (b[i] - v) * f));
+const scaleC = (c, k) => c.map((v) => Math.max(0, Math.min(255, Math.round(v * k))));
+function hsv(h) { // hue 0..1, full saturation and value, as Adafruit ColorHSV
+  const i = Math.floor(h * 6), f = h * 6 - i, q = 1 - f;
+  const t = [[1, f, 0], [q, 1, 0], [0, 1, f], [0, q, 1], [f, 0, 1], [1, 0, q]][i % 6];
+  return [...t.map((v) => Math.round(v * 255)), 0];
+}
+function baseColours(look) {
+  const out = [];
+  for (let i = 0; i < 6; i++) {
+    if (look.source !== "gradient") { out.push([...look.color]); continue; }
+    const f = look.spread === "mirror" ? (i <= 3 ? i / 3 : (6 - i) / 3) : look.spread === "split" ? (i < 3 ? 0 : 1) : i / 5;
+    out.push(mixC(look.c1, look.c2, f));
+  }
+  return out;
+}
+// Animation clock: one for the Output ring, one per memory chip.
+const newAnim = () => ({ phase: 0, cycles: 0, strobe: 0, sign: 1, last: 0 });
+const anim = newAnim();
+function advance(now, look, anim) {
+  const dt = anim.last ? Math.min(now - anim.last, MAX_DT_MS) : 0;
+  anim.last = now;
+  const step = speedHz(look.speed) * dt / 1000;
+  anim.cycles += step;
+  anim.strobe += strobeHz(look.speed) * dt / 1000;
+  if (look.direction === "ccw") anim.phase = frac(anim.phase - step);
+  else if (look.direction === "bounce") {
+    anim.phase += anim.sign * step;
+    if (anim.phase >= 1) { anim.phase = 2 - anim.phase; anim.sign = -1; }
+    if (anim.phase <= 0) { anim.phase = -anim.phase; anim.sign = 1; }
+    anim.phase = Math.min(Math.max(anim.phase, 0), 0.9999);
+  } else anim.phase = frac(anim.phase + step);
+}
+function drawLook(look, anim) {
+  const base = baseColours(look), p = anim.phase, wave = 0.5 + 0.5 * Math.sin(2 * Math.PI * p), f = [];
+  for (let i = 0; i < 6; i++) {
+    const c = base[i];
+    switch (look.effect) {
+      case "pulse": f.push(scaleC(c, 0.12 + 0.88 * wave)); break;
+      case "strobe": {
+        const onS = app.settings?.turboStrobe ? TURBO_ON_S : STROBE_ON_S;
+        f.push(frac(anim.strobe) < Math.min(0.5, onS * strobeHz(look.speed)) ? c : [0, 0, 0, 0]); break;
+      }
+      case "chase": {
+        const pos = Math.floor(p * 6) % 6, d = (i + 6 - pos) % 6;
+        f.push(scaleC(c, d === 0 ? 1 : d === 1 || d === 5 ? 0.28 : 0.05)); break;
+      }
+      case "spin": f.push(base[(i + Math.floor(p * 6)) % 6]); break;
+      case "wave": f.push(scaleC(c, 0.12 + 0.88 * (0.5 + 0.5 * Math.sin(2 * Math.PI * (p + i / 6))))); break;
+      case "rainbow": f.push(hsv(frac(p + i / 6))); break;
+      case "police": {
+        const hz = speedHz(look.speed), t = anim.cycles * (hz > POLICE_HZ_MAX ? POLICE_HZ_MAX / hz : 1);
+        const leftTurn = frac(t) < 0.5, blink = frac(t * 4) < 0.5, left = i < 3;
+        const on = left ? [255, 0, 0, 0] : [0, 40, 255, 0], dim = left ? [20, 0, 0, 0] : [0, 0, 20, 0];
+        f.push(left === leftTurn && blink ? on : dim); break;
+      }
+      default: f.push(c);
+    }
+  }
+  return f;
+}
+// An RGBW pixel as a screen colour: the white chip reads as warm white.
+function cssPixel(c, level = 1) {
+  const w = c[3] / 255;
+  const ch = (v, warm) => Math.min(255, (v + warm * w) * level);
+  const [r, g, b] = [ch(c[0], 255), ch(c[1], 226), ch(c[2], 180)];
+  const glow = Math.max(r, g, b) > 30 ? `0 0 10px rgba(${r | 0},${g | 0},${b | 0},.7)` : "none";
+  return { bg: `rgb(${r | 0},${g | 0},${b | 0})`, glow };
+}
+// ---- full-colour pad -------------------------------------------------------
+// Hue 0..1 across, saturation 1 (top) .. 0 (bottom, white). Brightness is the
+// light's own control, so the pad only picks hue and paleness at full value.
+function hsToRgb(h, sat) {
+  const pure = hsv(h);
+  return [0, 1, 2].map((k) => Math.round(255 + (pure[k] - 255) * sat));
+}
+function rgbToHs([r, g, b]) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (max === 0 || d === 0) return { h: 0, s: 0 };
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h /= 6;
+  return { h: h < 0 ? h + 1 : h, s: d / max };
+}
+function drawPad() {
+  const c = ui.hsCanvas, r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (!r.width) return;
+  c.width = Math.round(r.width * dpr);
+  c.height = Math.round(r.height * dpr);
+  const g = c.getContext("2d"), hue = g.createLinearGradient(0, 0, c.width, 0);
+  for (let i = 0; i <= 6; i++) hue.addColorStop(i / 6, `hsl(${i * 60}, 100%, 50%)`);
+  g.fillStyle = hue;
+  g.fillRect(0, 0, c.width, c.height);
+  const pale = g.createLinearGradient(0, 0, 0, c.height);
+  pale.addColorStop(0, "rgba(255,255,255,0)");
+  pale.addColorStop(1, "rgba(255,255,255,1)");
+  g.fillStyle = pale;
+  g.fillRect(0, 0, c.width, c.height);
+}
+function padKey() { // which colour of the look the pad edits
+  return app.state?.look.source === "gradient" ? app.padTarget : "color";
+}
+function renderPad() {
+  const l = app.state?.look;
+  if (!l) return;
+  const c = l[padKey()], { h, s: sat } = rgbToHs(c);
+  const off = c[0] + c[1] + c[2] === 0; // RGB off (e.g. white chip only): park the mark at white
+  ui.hsMark.style.left = `${(off ? 0 : h) * 100}%`;
+  ui.hsMark.style.top = `${(off ? 1 : 1 - sat) * 100}%`;
+  ui.hsMark.style.background = rgbToHex(c);
+  ui.hsPad.setAttribute("aria-valuetext", off ? "colour LEDs off" : `hue ${Math.round(h * 360)}°, ${Math.round(sat * 100)}% saturated`);
+  ui.padTargetLine.classList.toggle("hide", l.source !== "gradient");
+  markSeg(ui.padTarget, app.padTarget);
+}
+function pickFromPad(h, sat) {
+  if (!app.state) return;
+  const key = padKey(), cur = app.state.look[key];
+  const patch = { [key]: [...hsToRgb(h, sat), cur[3]] }; // keep that colour's white-chip level
+  if (["rainbow", "police"].includes(app.state.look.effect)) patch.effect = "static";
+  // Keep the colour box under the pad in step while dragging (the box isn't
+  // being touched, so it isn't "editing" and incoming states may update it too).
+  ui[key === "color" ? "colour" : key].value = rgbToHex(patch[key]);
+  setLook(patch, false);
+}
+function wirePad() {
+  const at = (e) => {
+    const r = ui.hsPad.getBoundingClientRect();
+    return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 0.9999,
+            1 - Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+  };
+  ui.hsPad.addEventListener("pointerdown", (e) => {
+    ui.hsPad.setPointerCapture(e.pointerId);
+    pickFromPad(...at(e));
+  });
+  ui.hsPad.addEventListener("pointermove", (e) => {
+    if (ui.hsPad.hasPointerCapture(e.pointerId)) pickFromPad(...at(e));
+  });
+  ui.hsPad.addEventListener("keydown", (e) => { // arrows: hue left/right, paleness up/down
+    const d = { ArrowLeft: [-1 / 72, 0], ArrowRight: [1 / 72, 0], ArrowUp: [0, 0.05], ArrowDown: [0, -0.05] }[e.key];
+    if (!d || !app.state) return;
+    e.preventDefault();
+    const { h, s: sat } = rgbToHs(app.state.look[padKey()]);
+    pickFromPad((h + d[0] + 1) % 1, Math.min(1, Math.max(0, sat + d[1])));
+  });
+  segmented(ui.padTarget, ["c1", "c2"], (v) => { app.padTarget = v; renderPad(); });
+  ui.padTarget.querySelectorAll("button").forEach((b, i) => { b.textContent = `Colour ${i + 1}`; });
+  new ResizeObserver(drawPad).observe(ui.hsPad);
+}
+
+function buildRing(el) {
+  el.replaceChildren();
+  for (let i = 0; i < 6; i++) {
+    const s = document.createElement("span");
+    const a = (i / 6) * 2 * Math.PI - Math.PI / 2; // pixel 0 at the top, clockwise
+    s.style.left = `${50 + 34 * Math.cos(a)}%`;
+    s.style.top = `${50 + 34 * Math.sin(a)}%`;
+    el.appendChild(s);
+  }
+}
+function paintRing(el, pixels, level = 1) {
+  el.querySelectorAll("span").forEach((s, i) => {
+    const { bg, glow } = cssPixel(pixels[i] ?? [0, 0, 0, 0], level);
+    s.style.background = bg;
+    s.style.boxShadow = glow;
+  });
+}
+
+// ------------------------------------------------------------ transport ---
+// One link to the light, over USB (Web Serial) or Bluetooth (Web Bluetooth,
+// Nordic UART layout). Either way it frames incoming bytes into lines, keeps
+// outgoing writes in order, and tears down cleanly however the link ends.
+const BLE_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const BLE_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // we write commands here
+const BLE_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // the light notifies replies here
+const BLE_CHUNK = 180; // fits iOS's usual 185-byte MTU; bigger commands go in pieces
+// Chrome's gatt.connect() can wait forever for a light that's out of range (seen
+// on the Mac, 2026-10-24: the page then refused every new connection until
+// Chrome restarted). Every Bluetooth step is therefore given a deadline.
+const BLE_STEP_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, ms, what) {
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+}
+
+class Transport extends EventTarget {
+  #kind = null;     // "usb" | "ble" | null
+  #port = null;     // SerialPort
+  #reader = null;
+  #writer = null;
+  #device = null;   // BluetoothDevice
+  #rx = null;       // characteristic we write to
+  #tx = null;       // characteristic that notifies us
+  #onNotify = null;
+  #onGattLost = null;
+  #pending = "";
+  #decoder = new TextDecoder();
+  #writeChain = Promise.resolve();
+  #closing = false;
+  #readLoopDone = null;
+
+  get kind() { return this.#kind; }
+  get port() { return this.#port; }
+  get device() { return this.#device; }
+  get open() { return this.#kind !== null && !this.#closing; }
+
+  async openPort(port) {
+    if (this.#kind) throw new Error("already open");
+    await port.open({ baudRate: 115200 }); // baud is ignored by native USB CDC but required by the API
+    this.#port = port;
+    this.#kind = "usb";
+    this.#closing = false;
+    this.#writer = port.writable.getWriter();
+    this.#readLoopDone = this.#readLoop();
+  }
+
+  async openBle(device) {
+    if (this.#kind) throw new Error("already open");
+    let rx, tx;
+    try {
+      const server = await withTimeout(device.gatt.connect(), BLE_STEP_TIMEOUT_MS, "Bluetooth connect");
+      const service = await withTimeout(server.getPrimaryService(BLE_SERVICE), BLE_STEP_TIMEOUT_MS, "Finding the light's service");
+      rx = await withTimeout(service.getCharacteristic(BLE_RX), BLE_STEP_TIMEOUT_MS, "Bluetooth setup");
+      tx = await withTimeout(service.getCharacteristic(BLE_TX), BLE_STEP_TIMEOUT_MS, "Bluetooth setup");
+      this.#onNotify = (e) => this.#feed(new Uint8Array(e.target.value.buffer, e.target.value.byteOffset, e.target.value.byteLength));
+      tx.addEventListener("characteristicvaluechanged", this.#onNotify);
+      await withTimeout(tx.startNotifications(), BLE_STEP_TIMEOUT_MS, "Bluetooth setup");
+    } catch (err) {
+      // Cancel whatever Chrome is still attempting, so the next try starts clean.
+      try { tx?.removeEventListener("characteristicvaluechanged", this.#onNotify); } catch { /* gone */ }
+      try { device.gatt.disconnect(); } catch { /* not connected */ }
+      throw err;
+    }
+    this.#onGattLost = () => { if (!this.#closing) this.close("lost"); };
+    device.addEventListener("gattserverdisconnected", this.#onGattLost);
+    this.#device = device; this.#rx = rx; this.#tx = tx;
+    this.#kind = "ble";
+    this.#closing = false;
+    this.#pending = "";
+  }
+
+  // Splits a byte stream into lines (shared by both kinds).
+  #feed(bytes) {
+    this.#pending += this.#decoder.decode(bytes, { stream: true });
+    let nl;
+    while ((nl = this.#pending.indexOf("\n")) >= 0) {
+      const line = this.#pending.slice(0, nl).replace(/\r$/, "");
+      this.#pending = this.#pending.slice(nl + 1);
+      if (line.length) this.dispatchEvent(new CustomEvent("line", { detail: line }));
+    }
+    if (this.#pending.length > MAX_LINE_CHARS) this.#pending = ""; // garbage without newlines: drop it
+  }
+
+  async #readLoop() {
+    try {
+      this.#reader = this.#port.readable.getReader();
+      for (;;) {
+        const { value, done } = await this.#reader.read();
+        if (done) break;
+        this.#feed(value);
+      }
+    } catch (err) {
+      if (!this.#closing) this.dispatchEvent(new CustomEvent("error", { detail: err }));
+    } finally {
+      try { this.#reader?.releaseLock(); } catch { /* already released */ }
+      this.#reader = null;
+      if (!this.#closing) this.close("lost");
+    }
+  }
+
+  async #writeBytes(bytes) {
+    if (this.#kind === "usb") {
+      if (!this.#writer) throw new Error("not connected");
+      await this.#writer.write(bytes);
+      return;
+    }
+    if (!this.#rx) throw new Error("not connected");
+    for (let i = 0; i < bytes.length; i += BLE_CHUNK) {
+      const part = bytes.slice(i, i + BLE_CHUNK);
+      // With-response writes arrive in order; older Web Bluetooth (some iOS apps) only has writeValue.
+      if (this.#rx.writeValueWithResponse) await this.#rx.writeValueWithResponse(part);
+      else await this.#rx.writeValue(part);
+    }
+  }
+
+  send(obj) {
+    if (!this.open) return Promise.reject(new Error("not connected"));
+    const text = JSON.stringify(obj) + "\n";
+    const bytes = new TextEncoder().encode(text);
+    // Chain writes so two messages can never interleave on the wire.
+    this.#writeChain = this.#writeChain.then(async () => {
+      await this.#writeBytes(bytes);
+      this.dispatchEvent(new CustomEvent("sent", { detail: text.trim() }));
+    });
+    this.#writeChain = this.#writeChain.catch((err) => {
+      if (!this.#closing) this.dispatchEvent(new CustomEvent("error", { detail: err }));
+    });
+    return this.#writeChain;
+  }
+
+  async close(reason = "user") {
+    if (!this.#kind || this.#closing) return;
+    this.#closing = true;
+    if (this.#kind === "usb") {
+      const port = this.#port;
+      try { await this.#reader?.cancel(); } catch { /* stream already errored */ }
+      try { await this.#readLoopDone; } catch { /* reported already */ }
+      try { this.#writer?.releaseLock(); } catch { /* pending write */ }
+      this.#writer = null;
+      try { await port.close(); } catch { /* device already gone */ }
+      this.#port = null;
+    } else {
+      const dev = this.#device;
+      try { this.#tx?.removeEventListener("characteristicvaluechanged", this.#onNotify); } catch { /* gone */ }
+      try { dev?.removeEventListener("gattserverdisconnected", this.#onGattLost); } catch { /* gone */ }
+      if (reason !== "lost") { try { await this.#tx?.stopNotifications(); } catch { /* already down */ } }
+      try { if (dev?.gatt?.connected) dev.gatt.disconnect(); } catch { /* already down */ }
+      this.#rx = this.#tx = null;
+      // Keep the device object: it's what lets us reconnect without the chooser.
+    }
+    const kind = this.#kind;
+    this.#kind = null;
+    this.#pending = "";
+    this.#writeChain = Promise.resolve();
+    this.dispatchEvent(new CustomEvent("closed", { detail: { reason, kind } }));
+  }
+}
+
+// ------------------------------------------------------------ app state ---
+const transport = new Transport();
+const app = {
+  hello: null, lists: DEFAULT_LISTS, limits: DEFAULT_LIMITS,
+  state: null, settings: null, slots: [], status: null,
+  lastRxAt: 0, userClosed: false, connecting: false, helloResolver: null,
+  heartbeat: 0, staleCheck: 0,
+  pending: { set: null, settings: null }, timers: { set: 0, settings: 0 }, lastSendAt: { set: 0, settings: 0 },
+  editingUntil: new Map(), lastPortInfo: null, lastBleDevice: null, retryGen: 0, nextId: 1, resetArmed: 0, sel: 0, animChips: true, padTarget: "c1",
+};
+
+function setConn(kind, text) {
+  ui.connDot.className = "dot " + kind;
+  ui.connLabel.textContent = text;
+  const connected = transport.open;
+  // Disconnected: one button per available way in. Connected: one Disconnect.
+  ui.connectBtn.textContent = connected ? "Disconnect" : "USB";
+  ui.connectBtn.title = connected ? "Disconnect from the light" : "Connect over a USB cable";
+  ui.connectBtn.classList.toggle("primary", !connected);
+  ui.connectBtn.hidden = !connected && !("serial" in navigator);
+  ui.bleBtn.hidden = connected || !("bluetooth" in navigator);
+  ui.controls.disabled = !(connected && app.hello && app.state && app.settings);
+}
+function editing(id) { return (app.editingUntil.get(id) ?? 0) > performance.now(); }
+function markEditing(id) { app.editingUntil.set(id, performance.now() + EDIT_GRACE_MS); }
+
+// ------------------------------------------------------------- builders ---
+function segmented(el, names, onPick) {
+  el.replaceChildren();
+  for (const n of names) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.value = n;
+    b.textContent = label(n);
+    b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => onPick(n));
+    el.appendChild(b);
+  }
+}
+function markSeg(el, value) {
+  for (const b of el.querySelectorAll("button")) {
+    const on = b.dataset.value === value;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+  }
+}
+function fillSelect(el, items) {
+  el.replaceChildren(...items.map(([value, text]) => Object.assign(document.createElement("option"), { value, textContent: text })));
+}
+
+function buildLists() {
+  const L = app.lists;
+  segmented(ui.sourceSeg, L.sources, (v) => setLook({ source: v }));
+  segmented(ui.spreadSeg, L.spreads, (v) => setLook({ spread: v }));
+  segmented(ui.dirSeg, L.directions, (v) => setLook({ direction: v }));
+  segmented(ui.speedSeg, SPEED_PRESETS.map((p) => String(p.speed)), (v) => setLook({ speed: Number(v) }));
+  ui.speedSeg.querySelectorAll("button").forEach((b, i) => { b.textContent = SPEED_PRESETS[i].name; });
+  ui.effects.replaceChildren();
+  for (const name of L.effects) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.value = name;
+    b.innerHTML = `${svg(name)}<span></span>`;
+    b.querySelector("span").textContent = name;
+    b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => setLook({ effect: name }));
+    ui.effects.appendChild(b);
+  }
+  fillSelect(ui.lowBat, L.lowBattery.map((n) => [n, label(n)]));
+  const lim = app.limits;
+  fillSelect(ui.autoOff, AUTO_OFF_CHOICES.filter((m) => m <= lim.autoOffMax).map((m) => [m, m ? `after ${m} min` : "Never"]));
+  ui.bmap.replaceChildren();
+  for (const g of L.gestures) {
+    const l = document.createElement("label");
+    l.className = "lbl";
+    l.htmlFor = `btn_${g}`;
+    l.textContent = label(g);
+    const s = document.createElement("select");
+    s.id = `btn_${g}`;
+    s.dataset.gesture = g;
+    fillSelect(s, L.actions.map((a) => [a, label(a)]));
+    s.addEventListener("change", () => queueSettings({ buttons: { [g]: s.value } }, true));
+    ui.bmap.append(l, s);
+  }
+  ui.brightness.max = lim.brightnessMax;
+  ui.speed.max = lim.speedMax;
+  ui.wpm.min = lim.wpmMin; ui.wpm.max = lim.wpmMax;
+  ui.cap.min = lim.capMin; ui.cap.max = lim.capMax;
+  ui.volume.max = lim.volumeMax;
+  ui.morseText.maxLength = lim.morseMax;
+  buildSlots();
+}
+
+function buildSwatches() {
+  for (const s of SWATCHES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch" + (s.white ? " w" : "");
+    if (!s.white) b.style.background = rgbToHex(s.rgbw);
+    b.title = s.name;
+    b.setAttribute("aria-label", s.name);
+    b.addEventListener("click", () => {
+      const patch = { color: [...s.rgbw], source: "solid" };
+      if (app.state && ["rainbow", "police"].includes(app.state.look.effect)) patch.effect = "static";
+      setLook(patch, true);
+    });
+    ui.swatches.appendChild(b);
+  }
+}
+
+// The memory strip: 8 chips. Tapping a chip selects it and recalls it (if it
+// holds a look); the controls at the end act on the selected slot.
+function buildSlots() {
+  ui.slots.replaceChildren();
+  for (let i = 0; i < app.limits.slots; i++) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip empty";
+    chip.dataset.index = i;
+    chip.setAttribute("role", "option");
+    chip.innerHTML = '<span class="ring"></span><span class="lines"><span class="txt"></span><span class="icons"></span></span>';
+    buildRing(chip.querySelector(".ring"));
+    chip.querySelector(".txt").textContent = "Empty";
+    chip.addEventListener("click", () => {
+      selectSlot(i);
+      if (app.slots[i]?.used) send({ cmd: "slot", op: "recall", index: i });
+    });
+    ui.slots.appendChild(chip);
+  }
+  ui.slotName.maxLength = app.limits.slotNameMax;
+  renderSlotCtl();
+}
+
+function selectSlot(i) {
+  app.sel = i;
+  ui.slots.querySelectorAll(".chip").forEach((c) => {
+    const on = Number(c.dataset.index) === i;
+    c.classList.toggle("sel", on);
+    c.setAttribute("aria-selected", String(on));
+  });
+  renderSlotCtl(true);
+}
+
+function renderSlotCtl(force = false) {
+  const i = app.sel, s = app.slots[i];
+  const used = Boolean(s?.used);
+  if (force || (document.activeElement !== ui.slotName && !editing("slotName"))) ui.slotName.value = used ? s.name : "";
+  ui.slotName.placeholder = used ? "" : `Slot ${i + 1}: name (optional)`;
+  ui.slotFav.disabled = ui.slotClear.disabled = !used;
+  ui.slotFav.textContent = s?.fav ? "★" : "☆";
+  ui.slotFav.classList.toggle("on", Boolean(s?.fav));
+  ui.slotFav.setAttribute("aria-pressed", String(Boolean(s?.fav)));
+  ui.slotStore.textContent = `Store in ${i + 1}`;
+  const cur = app.state?.slot;
+  ui.slotReadout.textContent = Number.isInteger(cur) && app.slots[cur]?.used
+    ? `slot ${cur + 1} · ${app.slots[cur].name}` : "no slot (edited)";
+}
+
+// --------------------------------------------------------------- render ---
+function renderState() {
+  const s = app.state;
+  if (!s) return;
+  const l = s.look;
+  ui.powerBtn.textContent = s.power ? "On" : "Off";
+  ui.powerBtn.classList.toggle("on", s.power);
+  ui.powerBtn.setAttribute("aria-pressed", String(s.power));
+  ui.flashBtn.classList.toggle("on", s.flashlight);
+  ui.flashBtn.setAttribute("aria-pressed", String(s.flashlight));
+  if (!editing("brightness")) { ui.brightness.value = s.brightness; ui.brightnessOut.textContent = `${s.brightness}%`; }
+  markSeg(ui.sourceSeg, l.source);
+  ui.solidBox.classList.toggle("hide", l.source === "gradient");
+  ui.gradBox.classList.toggle("hide", l.source !== "gradient");
+  if (!editing("colour")) ui.colour.value = rgbToHex(l.color);
+  if (!editing("white")) { ui.white.value = l.color[3]; ui.whiteOut.textContent = l.color[3]; }
+  if (!editing("c1")) ui.c1.value = rgbToHex(l.c1);
+  if (!editing("c2")) ui.c2.value = rgbToHex(l.c2);
+  markSeg(ui.spreadSeg, l.spread);
+  markSeg(ui.effects, l.effect);
+  if (!editing("speed")) { ui.speed.value = l.speed; ui.speedOut.textContent = l.speed; }
+  markSeg(ui.dirSeg, l.direction);
+  renderPad();
+  markSeg(ui.speedSeg, String(l.speed));
+  ui.strobeRate.textContent = l.effect === "strobe" ? `${strobeHz(l.speed).toFixed(1)} flashes/s` : "";
+  ui.lookReadout.textContent = !s.power ? "off" : s.flashlight ? "flashlight" : `${l.source} · ${l.effect}`;
+  renderSpread(l);
+  ui.findBtn.textContent = s.find ? "■ Stop Find" : "▶ Find Yona";
+  ui.findBtn.setAttribute("aria-pressed", String(s.find));
+  ui.morseBtn.textContent = s.morse ? "■ Stop Morse" : "▶ Send";
+  ui.morseBtn.classList.toggle("primary", !s.morse);
+  ui.morseBtn.classList.toggle("on", s.morse);
+  ui.morseBtn.setAttribute("aria-pressed", String(s.morse));
+  // A slot recalled from the light's button selects it here too.
+  if (Number.isInteger(s.slot) && s.slot !== app.sel) selectSlot(s.slot);
+  ui.slots.querySelectorAll(".chip").forEach((c) => c.classList.toggle("current", Number(c.dataset.index) === s.slot));
+  renderSlotCtl();
+}
+
+function renderSettings() {
+  const st = app.settings;
+  if (!st) return;
+  if (!editing("cap")) { ui.cap.value = st.capPct; ui.capOut.textContent = `${st.capPct}%`; }
+  renderCapNote();
+  if (!AUTO_OFF_CHOICES.includes(st.autoOffMin)) // a value set elsewhere: show it as-is
+    ui.autoOff.append(Object.assign(document.createElement("option"), { value: st.autoOffMin, textContent: `after ${st.autoOffMin} min` }));
+  ui.autoOff.value = String(st.autoOffMin);
+  ui.lowBat.value = st.lowBattery;
+  ui.turboBtn.setAttribute("aria-pressed", String(Boolean(st.turboStrobe)));
+  ui.turboBtn.textContent = st.turboStrobe ? "TURBO strobe: ON" : "TURBO strobe";
+  renderState(); // the strobe rate depends on TURBO
+  if (!editing("volume")) { ui.volume.value = st.volume; ui.volumeOut.textContent = `${st.volume}%`; }
+  for (const s of ui.bmap.querySelectorAll("select")) if (st.buttons?.[s.dataset.gesture]) s.value = st.buttons[s.dataset.gesture];
+  const m = st.morse ?? {};
+  if (!editing("morseText")) ui.morseText.value = m.text ?? "";
+  if (!editing("wpm")) { ui.wpm.value = m.wpm; ui.wpmOut.textContent = `${m.wpm} wpm`; }
+  renderMorseNote();
+  for (const [el, key] of [[ui.mLight, "light"], [ui.mBuzzer, "buzzer"], [ui.mRepeat, "repeat"]])
+    el.setAttribute("aria-pressed", String(Boolean(m[key])));
+}
+
+function renderCapNote() {
+  const pct = Number(ui.cap.value), w = (app.limits.budgetW * pct / 100).toFixed(2);
+  ui.capNote.textContent = `The LEDs are held to about ${w} W (100% = ${app.limits.budgetW} W, what the sealed shell can shed). ` +
+    "Brighter looks dim automatically to stay under it. Find always gets the full budget.";
+}
+const MORSE = { A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---",
+  K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-", U: "..-", V: "...-",
+  W: ".--", X: "-..-", Y: "-.--", Z: "--..", 0: "-----", 1: ".----", 2: "..---", 3: "...--", 4: "....-", 5: ".....",
+  6: "-....", 7: "--...", 8: "---..", 9: "----." };
+function renderMorseNote() {
+  const c = cleanMorse(ui.morseText.value);
+  ui.morseCode.textContent = c.split(" ").map((w) => [...w].map((ch) => MORSE[ch].replace(/-/g, "—").replace(/\./g, "·")).join("  ")).join("   /   ");
+  if (!c) { ui.morseNote.textContent = "Needs at least one letter or digit."; return; }
+  // Standard timing: 1 unit per dot and gap, 3 per dash and letter gap, 7 per word gap.
+  let units = 0;
+  for (const w of c.split(" ")) for (const ch of w) for (const sym of MORSE[ch]) units += sym === "." ? 2 : 4;
+  units += 2 * (c.replace(/ /g, "").length - 1) + 4 * (c.split(" ").length - 1) + 7;
+  const wpm = clampInt(ui.wpm.value, 5, 25), secs = units * 1.2 / wpm;
+  ui.morseNote.textContent = `Plays as “${c}”: about ${secs.toFixed(1)} s at ${wpm} wpm. Letters, digits and spaces only.`;
+}
+
+// A still picture of a look: its base colours, except where the effect brings its own.
+function slotPixels(look) {
+  if (look.effect === "rainbow") return Array.from({ length: 6 }, (_, i) => hsv(i / 6));
+  if (look.effect === "police") return Array.from({ length: 6 }, (_, i) => (i < 3 ? [255, 0, 0, 0] : [0, 40, 255, 0]));
+  return baseColours(look);
+}
+
+// Effects where direction changes what you see.
+const MOVING = new Set(["chase", "spin", "wave", "rainbow"]);
+const DIR_GLYPH = { cw: "↻", ccw: "↺", bounce: "⇄" };
+// At-a-glance badges for a saved look: colour source, effect, direction.
+function lookIcons(l) {
+  const own = l.effect === "rainbow" || l.effect === "police"; // these ignore the colour
+  const src = own ? "" : l.source === "gradient"
+    ? `<i class="src" title="gradient (${l.spread})" style="background:linear-gradient(90deg,${cssPixel(l.c1).bg},${cssPixel(l.c2).bg})"></i>`
+    : `<i class="src" title="solid" style="background:${cssPixel(l.color).bg}"></i>`;
+  const dir = MOVING.has(l.effect) ? `<b title="${l.direction}">${DIR_GLYPH[l.direction] ?? ""}</b>` : "";
+  return `${src}<span title="${l.effect}">${svg(l.effect)}</span>${dir}`;
+}
+
+// The band follows the spread: linear c1→c2, mirror c1→c2→c1, split hard halves.
+function renderSpread(l) {
+  const a = cssPixel(l.c1).bg, b = cssPixel(l.c2).bg;
+  ui.gradBar.style.background = l.spread === "mirror" ? `linear-gradient(90deg, ${a}, ${b} 50%, ${a})`
+    : l.spread === "split" ? `linear-gradient(90deg, ${a} 50%, ${b} 50%)` : `linear-gradient(90deg, ${a}, ${b})`;
+  if (ui.gradSegs.childElementCount !== 6)
+    ui.gradSegs.replaceChildren(...Array.from({ length: 6 }, () => document.createElement("span")));
+  baseColours(l).forEach((c, i) => {
+    const px = cssPixel(c);
+    ui.gradSegs.children[i].style.background = px.bg;
+    ui.gradSegs.children[i].style.boxShadow = px.glow;
+  });
+}
+
+function renderSlot(i) {
+  const chip = ui.slots.querySelector(`.chip[data-index="${i}"]`), s = app.slots[i];
+  if (!chip || !s) return;
+  chip.classList.toggle("empty", !s.used);
+  chip.classList.toggle("current", app.state?.slot === i);
+  paintRing(chip.querySelector(".ring"), s.used ? slotPixels(s.look) : [], 1);
+  chip.querySelector(".txt").textContent = s.used ? s.name : "Empty";
+  chip.title = s.used ? `${s.name}: ${s.look.source}, ${s.look.effect}` +
+    (MOVING.has(s.look.effect) ? `, ${s.look.direction}` : "") : `Slot ${i + 1} is empty`;
+  chip.querySelector(".icons").innerHTML = `<em>${i + 1}</em>` + (s.used ? lookIcons(s.look) : "") +
+    (s.fav ? '<b class="fav" title="favourite">★</b>' : "");
+  if (i === app.sel) renderSlotCtl();
+}
+
+function renderStatus() {
+  const st = app.status;
+  if (!st) return;
+  const valid = typeof st.vbat === "number" && typeof st.pct === "number";
+  ui.batPill.textContent = valid ? `${st.usb ? "⚡ " : ""}${st.pct}%` : "--";
+  ui.batPill.classList.toggle("low", valid && !st.usb && st.lowBattery !== "normal");
+  ui.batV.textContent = valid ? `${st.vbat.toFixed(2)} V · ${st.pct}%` : "invalid reading";
+  ui.lowState.textContent = st.lowBattery ?? "--";
+  ui.usb.textContent = st.usb ? "connected" : "no";
+  ui.charging.textContent = st.charging === null || st.charging === undefined ? "not sensed on this board"
+    : st.charging ? "yes" : "no";
+  ui.rail.textContent = st.rail ? "on" : "off";
+  ui.ledW.textContent = typeof st.ledW === "number" ? `${st.ledW.toFixed(2)} W` : "--";
+  ui.layer.textContent = LAYER_NAMES[st.layer] ?? st.layer ?? "--";
+  ui.autoOffIn.textContent = st.autoOffS ? fmtDuration(st.autoOffS) : st.usb ? "paused on USB" : "not counting";
+  ui.temp.textContent = typeof st.tempC === "number" ? `${st.tempC.toFixed(1)} °C` : "--";
+  ui.linkKind.textContent = transport.kind === "ble" ? "Bluetooth" : transport.kind === "usb" ? "USB" : "--";
+  ui.uptime.textContent = fmtDuration(st.uptime);
+  ui.heap.textContent = Number.isFinite(st.heap) ? `${Math.round(st.heap / 1024)} KB` : "--";
+  ui.batNote.textContent = !valid
+    ? "The battery reading is outside 2.5–4.6 V, which points to a wiring fault in the VBAT divider."
+    : st.usb ? "On USB the reading is the charging voltage, so the percentage reads high." : "";
+  ui.layerNote.textContent = LAYER_LABELS[st.layer] ?? "";
+}
+
+function renderHello(h) {
+  ui.fw.textContent = h.fw ?? "--";
+  ui.board.textContent = h.board ?? "--";
+  const boot = h.boot ?? {};
+  const reasons = { poweron: "power-on", brownout: "brownout", panic: "crash", software: "software restart",
+                    task_wdt: "watchdog", int_wdt: "watchdog", wdt: "watchdog", external: "reset pin",
+                    deepsleep: "sleep wake", usb: "USB reset (upload)", other: "other" };
+  ui.boot.textContent = `${reasons[boot.reason] ?? boot.reason ?? "--"}` +
+    (Number.isInteger(boot.count) ? ` (boot #${boot.count})` : "");
+  const lists = {};
+  for (const [k, v] of Object.entries(DEFAULT_LISTS))
+    lists[k] = Array.isArray(h.lists?.[k]) && h.lists[k].every((x) => typeof x === "string") ? h.lists[k] : v;
+  app.lists = lists;
+  app.limits = { ...DEFAULT_LIMITS };
+  for (const k of Object.keys(DEFAULT_LIMITS)) if (Number.isFinite(h.limits?.[k])) app.limits[k] = h.limits[k];
+  buildLists();
+}
+
+// The live ring: what the light should be showing right now, from the page's view.
+// Memory chips play their own look (each with its own clock, so they don't
+// march in step). Turned off in Settings › Page, they show a still picture.
+const chipAnims = [];
+function animateChips(now) {
+  ui.slots.querySelectorAll(".chip").forEach((chip, i) => {
+    const s = app.slots[i];
+    if (!s?.used) return;
+    const a = (chipAnims[i] ??= newAnim());
+    advance(now, s.look, a);
+    paintRing(chip.querySelector(".ring"), drawLook(s.look, a), 1);
+  });
+}
+function setAnimChips(on) {
+  app.animChips = on;
+  ui.animChips.setAttribute("aria-pressed", String(on));
+  ui.animChips.textContent = on ? "On" : "Off";
+  try { localStorage.setItem(ANIM_KEY, on ? "1" : "0"); } catch { /* not persisted; still applied */ }
+  if (!on) for (let i = 0; i < app.slots.length; i++) renderSlot(i); // back to still pictures
+}
+
+function frame(now) {
+  const s = app.state;
+  let pixels = [], level = 1;
+  if (s && transport.open) {
+    advance(now, s.look, anim);
+    const layer = app.status?.layer;
+    if (s.find) pixels = Array.from({ length: 6 }, (_, i) => (i % 2 === 0) !== (Math.floor(now / 333) % 2 === 1) ? [255, 0, 0, 0] : [0, 0, 0, 255]);
+    else if (s.morse || layer === "gauge" || layer === "flash") pixels = []; // can't mirror those timings: blank
+    else if (!s.power) pixels = [];
+    else if (s.flashlight) pixels = Array(6).fill([0, 0, 0, 255]);
+    else pixels = drawLook(s.look, anim);
+    level = 0.25 + 0.75 * (s.brightness / 100); // a screen can't go as dark as an LED, so compress
+  }
+  paintRing(ui.liveRing, pixels, level);
+  if (app.animChips && transport.open) animateChips(now);
+  requestAnimationFrame(frame);
+}
+
+// -------------------------------------------------------------- protocol ---
+function handleLine(line) {
+  app.lastRxAt = performance.now();
+  if (line[0] !== "{") { log(line, "txt"); return; } // boot banner, text-mode output
+  let msg;
+  try { msg = JSON.parse(line); } catch { log(line, "err"); return; }
+  log(line);
+  if (typeof msg !== "object" || msg === null) return;
+  switch (msg.type) {
+    case "hello":
+      if (msg.proto !== PROTOCOL_VERSION) {
+        showBanner(`This page speaks protocol ${PROTOCOL_VERSION}, the light speaks ${msg.proto}. ` +
+                   "Upload firmware 0.4 or later (or use the page that came with that firmware).");
+        app.helloResolver?.(msg);
+        return;
+      }
+      app.hello = msg;
+      renderHello(msg);
+      app.helloResolver?.(msg);
+      break;
+    case "state":
+      if (isLook(msg.look) && typeof msg.power === "boolean") {
+        if (app.pending.set) Object.assign(msg, mergeLocal(msg, app.pending.set)); // our unsent edits win
+        app.state = msg;
+        renderState();
+      }
+      break;
+    case "settings":
+      if (msg.morse && msg.buttons) { app.settings = msg; renderSettings(); }
+      break;
+    case "slot":
+      if (Number.isInteger(msg.index) && msg.index >= 0 && msg.index < app.limits.slots && (msg.look === null || isLook(msg.look))) {
+        app.slots[msg.index] = msg;
+        renderSlot(msg.index);
+      }
+      break;
+    case "status":
+      app.status = msg;
+      renderStatus();
+      break;
+    case "event": onEvent(msg); break;
+    case "error": toast(`Light says: ${msg.message ?? msg.code}`); break;
+    default: break; // "ok", and types newer firmware may add
+  }
+  if (app.hello) setConn("ok", `Connected${transport.kind === "ble" ? " (Bluetooth)" : ""} · fw ${app.hello.fw}`);
+}
+
+function onEvent(e) {
+  if (e.source === "button" && typeof e.action === "string") {
+    const [gesture, what, extra] = e.action.split(":");
+    const text = what === "stop_find" ? "stopped Find" : what === "stop_morse" ? "stopped Morse"
+      : what === "power_on" ? "power on" : extra === "none" ? `${label(what)} (nothing to do)` : label(what);
+    toast(`${label(gesture)}: ${text}`);
+  } else if (e.source === "find" && e.action === "timeout") toast("Find stopped after 2 minutes");
+  else if (e.source === "morse" && e.action === "done") toast("Morse message finished");
+  else if (e.source === "power") {
+    const t = { auto_off: "Turned off by auto-off", low_battery: "Turned off: battery too low",
+                refused_low_battery: "Won't turn on: battery too low", sleep: "The light is going to sleep" }[e.action];
+    if (t) toast(t);
+  } else if (e.source === "battery") toast(`Battery: ${e.action}`);
+}
+
+function send(obj) {
+  return transport.send(obj).catch((err) => log(`send failed: ${err.message}`, "err"));
+}
+
+// Merges nested objects one level deep (look, buttons, morse).
+function mergeInto(target, patch) {
+  for (const [k, v] of Object.entries(patch)) {
+    if (v && typeof v === "object" && !Array.isArray(v)) target[k] = { ...(target[k] ?? {}), ...v };
+    else target[k] = v;
+  }
+  return target;
+}
+function mergeLocal(state, patch) { return mergeInto(clone(state), patch); }
+
+// Coalesces rapid changes (slider drags) into at most one message per interval per command.
+function queue(cmd, fields, immediate = false) {
+  if (!transport.open || !app.hello) return;
+  app.pending[cmd] = mergeInto(app.pending[cmd] ?? {}, fields);
+  if (app.timers[cmd]) return; // already scheduled; the merged fields go with it
+  const flush = () => {
+    app.timers[cmd] = 0;
+    const p = app.pending[cmd];
+    app.pending[cmd] = null;
+    if (!p || !transport.open) return;
+    app.lastSendAt[cmd] = performance.now();
+    send({ cmd, ...p });
+  };
+  const wait = immediate ? 0 : Math.max(0, SEND_INTERVAL_MS - (performance.now() - app.lastSendAt[cmd]));
+  app.timers[cmd] = setTimeout(flush, wait);
+}
+// Optimistic: the page shows the change at once; the light's reply then confirms it.
+function setLight(fields, immediate = false) {
+  if (!app.state) return;
+  app.state = mergeLocal(app.state, fields);
+  if (fields.look) app.state.slot = null;
+  renderState();
+  queue("set", fields, immediate);
+}
+function setLook(patch, immediate = true) { setLight({ look: patch }, immediate); }
+function queueSettings(fields, immediate = false) {
+  if (!app.settings) return;
+  app.settings = mergeLocal(app.settings, fields);
+  queue("settings", fields, immediate);
+}
+
+function waitForHello() {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { app.helloResolver = null; reject(new Error("timeout")); }, HELLO_TIMEOUT_MS);
+    app.helloResolver = (msg) => { clearTimeout(timer); app.helloResolver = null; resolve(msg); };
+  });
+}
+
+async function handshake() {
+  for (let attempt = 1; attempt <= HELLO_ATTEMPTS; attempt++) {
+    const wait = waitForHello();
+    await send({ cmd: "hello", id: app.nextId++ });
+    try {
+      const h = await wait;
+      if (h.proto !== PROTOCOL_VERSION) throw new Error("proto");
+      return h;
+    } catch (err) {
+      if (err.message === "proto") throw new Error(ui.banner.textContent);
+      log(`no hello reply (attempt ${attempt})`, "err");
+    }
+    if (!transport.open) throw new Error("closed");
+  }
+  throw new Error(transport.kind === "ble"
+    ? "The light did not answer over Bluetooth. Is firmware 0.5 or later uploaded?"
+    : "The light did not answer. Is firmware 0.4 or later uploaded?");
+}
+
+function startTimers() {
+  stopTimers();
+  app.heartbeat = setInterval(() => { if (transport.open) send({ cmd: "status" }); }, HEARTBEAT_MS);
+  app.staleCheck = setInterval(() => {
+    if (transport.open && app.hello && performance.now() - app.lastRxAt > STALE_AFTER_MS)
+      setConn("warn", "Connected, but the light has gone quiet");
+  }, 1000);
+}
+function stopTimers() {
+  clearInterval(app.heartbeat);
+  clearInterval(app.staleCheck);
+  for (const k of Object.keys(app.timers)) { clearTimeout(app.timers[k]); app.timers[k] = 0; app.pending[k] = null; }
+  app.heartbeat = app.staleCheck = 0;
+}
+
+// ------------------------------------------------------------ connection ---
+// kind "usb" with a SerialPort, or "ble" with a BluetoothDevice.
+async function connect(kind, target, quiet = false) {
+  if (app.connecting || transport.open) return;
+  app.connecting = true;
+  app.userClosed = false;
+  showBanner("");
+  setConn("warn", kind === "ble" ? "Connecting over Bluetooth…" : "Connecting…");
+  try {
+    if (kind === "ble") await transport.openBle(target);
+    else await transport.openPort(target);
+  } catch (err) {
+    app.connecting = false;
+    setConn("bad", "Not connected");
+    if (kind === "ble") {
+      log(`Bluetooth: ${err?.message ?? err}`, "err");
+      if (!quiet) showBanner(`Couldn't connect over Bluetooth: ${err?.message ?? err}. Is the light on (or woken with its button) and in range?`);
+    } else {
+      const busy = err?.name === "NetworkError" || /open/i.test(err?.message ?? "");
+      showBanner(busy
+        ? "Couldn't open the port. It's usually in use: close the PlatformIO Serial Monitor (bin icon) and try again."
+        : `Couldn't open the port: ${err?.message ?? err}`);
+    }
+    return false;
+  }
+  if (kind === "usb") app.lastPortInfo = target.getInfo();
+  else app.lastBleDevice = target;
+  setConn("warn", "Connected, waiting for the light…");
+  try {
+    await handshake();
+    startTimers();
+    setConn("ok", `Connected${kind === "ble" ? " (Bluetooth)" : ""} · fw ${app.hello.fw}`);
+    return true;
+  } catch (err) {
+    if (transport.open) {
+      app.hello = null;
+      showBanner(err.message);
+      await transport.close("handshake");
+    }
+    return false;
+  } finally {
+    app.connecting = false;
+  }
+}
+
+async function onConnectClick() {
+  if (transport.open) {
+    app.userClosed = true;
+    await transport.close("user");
+    return;
+  }
+  app.retryGen++; // a click replaces any background reconnect
+  if (app.connecting) { toast("Still finishing the last connection attempt: try again in a few seconds."); return; }
+  let port;
+  try {
+    port = await navigator.serial.requestPort({ filters: USB_FILTERS });
+  } catch (err) {
+    if (err?.name !== "NotFoundError") showBanner(`Couldn't choose a port: ${err?.message ?? err}`);
+    return; // NotFoundError = the picker was cancelled
+  }
+  await connect("usb", port);
+}
+
+async function onBleClick() {
+  app.retryGen++; // a click replaces any background reconnect
+  if (app.connecting) { toast("Still finishing the last connection attempt: try again in a few seconds."); return; }
+  let device;
+  try {
+    // Filtering on the service shows only Yona lights in the chooser.
+    device = await navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_SERVICE] }] });
+  } catch (err) {
+    if (err?.name !== "NotFoundError") showBanner(`Couldn't choose a light: ${err?.message ?? err}`);
+    return; // NotFoundError = the chooser was cancelled
+  }
+  await connect("ble", device);
+}
+
+// Bluetooth drops (out of range, the light restarted) are retried quietly a few
+// times with the same device, which needs no chooser.
+const BLE_RETRIES = 5, BLE_RETRY_MS = 3000;
+async function bleReconnect() {
+  const gen = ++app.retryGen; // a newer click or loop makes this one stop
+  const live = () => gen === app.retryGen && !app.userClosed && !transport.open;
+  for (let i = 1; i <= BLE_RETRIES && live(); i++) {
+    setConn("warn", `Bluetooth lost: reconnecting (${i}/${BLE_RETRIES})…`);
+    await new Promise((r) => setTimeout(r, BLE_RETRY_MS));
+    if (!live()) return;
+    if (await connect("ble", app.lastBleDevice, true)) return;
+  }
+  if (live()) {
+    setConn("bad", "Disconnected");
+    showBanner("Couldn't reconnect over Bluetooth. Check the light is on and in range, then click Bluetooth (or USB).");
+  }
+}
+
+function resetDisplay() {
+  app.hello = app.state = app.settings = app.status = null;
+  app.slots = [];
+  for (const id of ["linkKind", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn", "temp", "fw", "board",
+                    "uptime", "boot", "heap", "batPill"]) ui[id].textContent = "--";
+  ui.batNote.textContent = ui.layerNote.textContent = "";
+  ui.batPill.classList.remove("low");
+  buildSlots();
+}
+
+transport.addEventListener("line", (e) => handleLine(e.detail));
+transport.addEventListener("sent", (e) => log("→ " + e.detail, "tx"));
+transport.addEventListener("error", (e) => log(`link error: ${e.detail?.message ?? e.detail}`, "err"));
+transport.addEventListener("closed", (e) => {
+  stopTimers();
+  resetDisplay();
+  const { reason, kind } = e.detail;
+  setConn(reason === "user" ? "" : "bad", reason === "user" ? "Not connected" : "Disconnected");
+  if (reason !== "lost") return;
+  if (kind === "ble") {
+    toast("Lost the light over Bluetooth. Trying to reconnect…");
+    if (!app.userClosed && app.lastBleDevice) bleReconnect();
+  } else {
+    toast("Lost the light (cable unplugged or it restarted). It reconnects when it's back.");
+  }
+});
+
+// --------------------------------------------------------------- wiring ---
+function slider(el, out, fmt, onValue) {
+  el.addEventListener("input", () => {
+    markEditing(el.id);
+    out.textContent = fmt(el.value);
+    onValue(clampInt(el.value, Number(el.min), Number(el.max)));
+  });
+}
+
+function wireControls() {
+  ui.connectBtn.addEventListener("click", onConnectClick);
+  ui.bleBtn.addEventListener("click", onBleClick);
+  for (const [tab, page] of [[ui.tabLight, ui.pageLight], [ui.tabSettings, ui.pageSettings]]) {
+    tab.addEventListener("click", () => {
+      for (const [t, p] of [[ui.tabLight, ui.pageLight], [ui.tabSettings, ui.pageSettings]]) {
+        t.setAttribute("aria-selected", String(t === tab));
+        p.hidden = p !== page;
+      }
+    });
+  }
+
+  ui.powerBtn.addEventListener("click", () => setLight({ power: !app.state?.power }, true));
+  ui.flashBtn.addEventListener("click", () => setLight({ flashlight: !app.state?.flashlight, power: true }, true));
+  slider(ui.brightness, ui.brightnessOut, (v) => `${v}%`, (v) => setLight({ brightness: v }));
+  slider(ui.speed, ui.speedOut, (v) => v, (v) => setLook({ speed: v }, false));
+  slider(ui.white, ui.whiteOut, (v) => v, (v) => setLook({ color: [...hexToRgb(ui.colour.value), v] }, false));
+
+  ui.colour.addEventListener("input", () => {
+    markEditing("colour");
+    const patch = { color: [...hexToRgb(ui.colour.value), clampInt(ui.white.value, 0, 255)] };
+    if (app.state && ["rainbow", "police"].includes(app.state.look.effect)) patch.effect = "static";
+    setLook(patch, false);
+  });
+  for (const id of ["c1", "c2"]) {
+    ui[id].addEventListener("focus", () => { app.padTarget = id; renderPad(); });
+    ui[id].addEventListener("input", () => {
+      markEditing(id);
+      const patch = { [id]: [...hexToRgb(ui[id].value), app.state?.look?.[id]?.[3] ?? 0] };
+      if (app.state && ["rainbow", "police"].includes(app.state.look.effect)) patch.effect = "static";
+      setLook(patch, false);
+    });
+  }
+  ui.swapBtn.addEventListener("click", () => {
+    if (app.state) setLook({ c1: [...app.state.look.c2], c2: [...app.state.look.c1] });
+  });
+
+  ui.findBtn.addEventListener("click", () => send({ cmd: "find", on: !(app.state?.find ?? false) }));
+  ui.morseBtn.addEventListener("click", () => send({ cmd: "morse", on: !(app.state?.morse ?? false) }));
+  ui.chirpBtn.addEventListener("click", () => send({ cmd: "chirp" }));
+  ui.gaugeBtn.addEventListener("click", () => send({ cmd: "gauge" }));
+
+  slider(ui.cap, ui.capOut, (v) => `${v}%`, (v) => { renderCapNote(); queueSettings({ capPct: v }); });
+  slider(ui.volume, ui.volumeOut, (v) => `${v}%`, (v) => queueSettings({ volume: v }));
+  slider(ui.wpm, ui.wpmOut, (v) => `${v} wpm`, (v) => queueSettings({ morse: { wpm: v } }));
+  ui.turboBtn.addEventListener("click", () => {
+    if (!app.settings) return;
+    queueSettings({ turboStrobe: !app.settings.turboStrobe }, true);
+    renderSettings();
+  });
+  ui.autoOff.addEventListener("change", () => queueSettings({ autoOffMin: clampInt(ui.autoOff.value, 0, app.limits.autoOffMax) }, true));
+  ui.lowBat.addEventListener("change", () => queueSettings({ lowBattery: ui.lowBat.value }, true));
+  for (const [el, key] of [[ui.mLight, "light"], [ui.mBuzzer, "buzzer"], [ui.mRepeat, "repeat"]])
+    el.addEventListener("click", () => {
+      const on = el.getAttribute("aria-pressed") !== "true";
+      el.setAttribute("aria-pressed", String(on));
+      queueSettings({ morse: { [key]: on } }, true);
+    });
+  for (const b of document.querySelectorAll(".morseline .preset"))
+    b.addEventListener("click", () => {
+      ui.morseText.value = b.dataset.text;
+      renderMorseNote();
+      queueSettings({ morse: { text: b.dataset.text } }, true);
+    });
+  ui.wpm.addEventListener("input", renderMorseNote);
+
+  ui.slotStore.addEventListener("click", () => {
+    const i = app.sel, s = app.slots[i], v = ui.slotName.value.trim();
+    const msg = { cmd: "slot", op: "store", index: i };
+    if (v && v !== s?.name) msg.name = v;
+    send(msg);
+  });
+  ui.slotFav.addEventListener("click", () => send({ cmd: "slot", op: "fav", index: app.sel, fav: !app.slots[app.sel]?.fav }));
+  ui.slotClear.addEventListener("click", () => send({ cmd: "slot", op: "clear", index: app.sel }));
+  ui.slotName.addEventListener("input", () => markEditing("slotName"));
+  ui.slotName.addEventListener("keydown", (e) => { if (e.key === "Enter") ui.slotName.blur(); });
+  ui.slotName.addEventListener("change", () => {
+    const s = app.slots[app.sel], v = ui.slotName.value.trim();
+    if (!s?.used) return; // an empty slot's name waits for Store
+    if (v && v !== s.name) send({ cmd: "slot", op: "rename", index: app.sel, name: v });
+    else ui.slotName.value = s.name;
+  });
+  ui.morseText.addEventListener("input", () => { markEditing("morseText"); renderMorseNote(); });
+  ui.morseText.addEventListener("change", () => {
+    const c = cleanMorse(ui.morseText.value);
+    if (c) queueSettings({ morse: { text: c } }, true);
+    else if (app.settings) { ui.morseText.value = app.settings.morse.text; renderMorseNote(); }
+  });
+
+  // Two taps, no dialog: the first arms the button for a few seconds.
+  ui.resetBtn.addEventListener("click", () => {
+    if (performance.now() < app.resetArmed) {
+      app.resetArmed = 0;
+      ui.resetBtn.classList.remove("armed");
+      ui.resetBtn.textContent = "Factory reset";
+      send({ cmd: "factoryReset", confirm: "RESET" });
+      toast("Factory reset sent");
+      return;
+    }
+    app.resetArmed = performance.now() + RESET_ARM_MS;
+    ui.resetBtn.classList.add("armed");
+    ui.resetBtn.textContent = "Tap again to reset everything";
+    setTimeout(() => {
+      if (performance.now() >= app.resetArmed) {
+        ui.resetBtn.classList.remove("armed");
+        ui.resetBtn.textContent = "Factory reset";
+      }
+    }, RESET_ARM_MS + 50);
+  });
+}
+
+// ---------------------------------------------------------------- theme ---
+// Auto follows the system setting; Dark and Light override it. The choice is
+// remembered in this browser only (storage can be unavailable, e.g. private mode).
+const THEMES = ["auto", "dark", "light"];
+const THEME_LABELS = { auto: "Auto", dark: "Dark", light: "Light" };
+const THEME_KEY = "yona.theme";
+const ANIM_KEY = "yona.animChips";
+
+function applyTheme(theme) {
+  const t = THEMES.includes(theme) ? theme : "auto";
+  if (t === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  const btn = $("themeBtn");
+  btn.textContent = `◐ ${THEME_LABELS[t]}`;
+  btn.dataset.theme = t;
+  btn.setAttribute("aria-label", `Appearance: ${THEME_LABELS[t]}. Click to change.`);
+  try { localStorage.setItem(THEME_KEY, t); } catch { /* not persisted; still applied */ }
+}
+
+function initTheme() {
+  let saved = "auto";
+  try { saved = localStorage.getItem(THEME_KEY) ?? "auto"; } catch { /* storage blocked */ }
+  applyTheme(saved);
+  $("themeBtn").addEventListener("click", () => {
+    const cur = $("themeBtn").dataset.theme ?? "auto";
+    applyTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
+  });
+}
+
+function init() {
+  initTheme();
+  buildRing(ui.liveRing);
+  wirePad();
+  buildLists();
+  buildSwatches();
+  wireControls();
+  setConn("", "Not connected");
+  let animSaved = null;
+  try { animSaved = localStorage.getItem(ANIM_KEY); } catch { /* storage blocked */ }
+  setAnimChips(animSaved !== "0");
+  ui.animChips.addEventListener("click", () => setAnimChips(!app.animChips));
+  requestAnimationFrame(frame);
+
+  const hasSerial = "serial" in navigator, hasBle = "bluetooth" in navigator;
+  if (!hasSerial && !hasBle) {
+    ui.connectBtn.disabled = true;
+    showBanner(window.isSecureContext
+      ? "This browser can't reach the light: it has neither Web Serial (USB) nor Web Bluetooth. Use desktop Chrome or Edge, or Bluefy on iPhone."
+      : "This page needs a secure address to reach the light: open the file directly in Chrome, serve it from localhost, or use its https address (see web/README.md).");
+    return;
+  }
+  if (!hasSerial) return; // Bluetooth only (e.g. Bluefy on iPhone): no USB events to watch
+
+  // Reconnect by itself when a light we already have permission for comes back
+  // (after an upload or a reset), unless the user chose to disconnect.
+  navigator.serial.addEventListener("connect", (e) => {
+    const info = e.target?.getInfo?.();
+    const same = info && app.lastPortInfo && info.usbVendorId === app.lastPortInfo.usbVendorId &&
+                 info.usbProductId === app.lastPortInfo.usbProductId;
+    // A short delay lets the chip finish booting before the handshake starts.
+    if (same && !app.userClosed && !transport.open) setTimeout(() => connect("usb", e.target), 800);
+  });
+  navigator.serial.addEventListener("disconnect", (e) => {
+    if (transport.port === e.target) transport.close("lost");
+  });
+}
+
+init();
+</script>
+</body>
+</html>
