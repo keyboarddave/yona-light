@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Yona Light Control</title>
 <style>
+  .passkey { font-variant-numeric: tabular-nums; letter-spacing: .12em; font-weight: 600; }
   :root {
     --bg: #f4f2ee; --panel: #ffffff; --ink: #1d1c1a; --muted: #6b675f; --line: #e2ddd3;
     --accent: #e8752a; --accent-ink: #ffffff; --ok: #2f8f4e; --warn: #c98a10; --bad: #c4382c;
@@ -371,7 +372,11 @@
           <dt>Showing</dt><dd id="layer">--</dd>
           <dt>Auto-off in</dt><dd id="autoOffIn">--</dd>
           <dt>Chip temperature</dt><dd id="temp">--</dd>
+          <dt>ADC pin (raw)</dt><dd id="pinMv">--</dd>
+          <dt>Calibration</dt><dd id="calInfo">--</dd>
           <dt>Connected by</dt><dd id="linkKind">--</dd>
+          <dt>Bluetooth name</dt><dd id="bleName">--</dd>
+          <dt>Bluetooth connects / drops</dt><dd id="bleCount">--</dd>
           <dt>Firmware</dt><dd id="fw">--</dd>
           <dt>Board</dt><dd id="board">--</dd>
           <dt>Up for</dt><dd id="uptime">--</dd>
@@ -379,6 +384,54 @@
           <dt>Free memory</dt><dd id="heap">--</dd>
         </dl>
         <p class="note" id="batNote"></p>
+      </section>
+
+      <section>
+        <h2>Recorder</h2>
+        <p class="note" style="margin-top:0">Logs every status message (every 2 s, over USB or Bluetooth) for charge, discharge and soak tests. Keep this page open; it carries on across a Bluetooth reconnect.</p>
+        <div class="actions" style="margin-top:10px">
+          <button type="button" id="recBtn" aria-pressed="false">● Record</button>
+          <button type="button" id="recSaveBtn" disabled>Save CSV</button>
+          <button type="button" id="recClearBtn" disabled>Clear</button>
+        </div>
+        <p class="note" id="recInfo">Nothing recorded.</p>
+      </section>
+
+      <section>
+        <h2>Battery calibration</h2>
+        <p class="note" style="margin-top:0">Best on battery (USB unplugged). Meter the battery + rail to GND, type the reading and add it. One point fixes the gain; a second point at least 0.15 V away (e.g. low, then full) fixes the offset too. Saved on the light; factory reset keeps it.</p>
+        <div class="line">
+          <label class="lbl" for="calMeter">Meter reads</label>
+          <input type="text" id="calMeter" inputmode="decimal" placeholder="e.g. 3.92" style="width:110px">
+          <span class="lbl">V</span>
+          <button type="button" id="calAddBtn">Add point</button>
+          <button type="button" id="calClearBtn">Back to default</button>
+        </div>
+        <p class="note" id="calNote"></p>
+        <div class="line" style="margin-top:14px">
+          <label class="lbl" for="simPct">Test: pretend battery at</label>
+          <input type="text" id="simPct" inputmode="numeric" placeholder="%" style="width:70px">
+          <span class="lbl">%</span>
+          <button type="button" id="simSetBtn">Pretend</button>
+          <button type="button" id="simStopBtn">Stop</button>
+        </div>
+        <p class="note">USB only; nothing is saved and a restart clears it. Runs the low-battery steps as if on battery at that level (they act after 10 s).</p>
+      </section>
+
+      <section>
+        <h2>Bluetooth pairing</h2>
+        <p class="note" style="margin-top:0">A phone or computer pairs once by typing the light's 6-digit passkey, then reconnects without asking. New pairings only work for 3 minutes after the light starts or its button is pressed, and whenever it's on USB, so nobody can pair while Yona is out. The passkey is shown here over USB only.</p>
+        <dl class="kv">
+          <dt>Passkey</dt><dd id="pairKey" class="passkey">--</dd>
+          <dt>Paired devices</dt><dd id="pairBonds">--</dd>
+          <dt>New pairings</dt><dd id="pairWindow">--</dd>
+          <dt>Failed pairings</dt><dd id="pairFails">--</dd>
+        </dl>
+        <div class="actions" style="margin-top:10px">
+          <button type="button" id="pairNewBtn">New passkey</button>
+          <button type="button" id="pairForgetBtn" class="danger">Forget all devices</button>
+        </div>
+        <p class="note" id="pairNote">USB only. A new passkey doesn't unpair anything; to lock a device out, forget all devices and pair the ones you keep again (forget the light on them too).</p>
       </section>
 
       <section>
@@ -392,7 +445,7 @@
 
       <section>
         <h2>Reset</h2>
-        <p class="note" style="margin-top:0">Puts every setting and all 8 memory slots back to the factory defaults.</p>
+        <p class="note" style="margin-top:0">Puts every setting and all 8 memory slots back to the factory defaults. Battery calibration and the passkey are kept. Over USB it also forgets paired Bluetooth devices; over Bluetooth it doesn't, so the phone doing it isn't locked out.</p>
         <div class="actions" style="margin-top:10px"><button type="button" id="resetBtn" class="danger">Factory reset</button></div>
       </section>
 
@@ -417,6 +470,13 @@ const PROTOCOL_VERSION = 2;
 const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
 const HELLO_TIMEOUT_MS = 2500;
 const HELLO_ATTEMPTS = 3;
+// Bluetooth with pairing (fw 0.6+): the first write can sit behind the system's
+// passkey dialog, and the light stays silent until the link is paired.
+const BLE_HELLO_TIMEOUT_MS = 5000;
+const BLE_HELLO_ATTEMPTS = 6;
+const BLE_PAIRING_TIMEOUT_MS = 90000;
+const PAIRING_HINT_AFTER_MS = 2500;
+const PAIRING_HINT = "Waiting for a secure link. First time only: type the light's 6-digit passkey when asked (Settings › Bluetooth pairing, over USB)";
 const HEARTBEAT_MS = 3000;          // keeps the firmware in JSON mode (it gives up after 10 s)
 const STALE_AFTER_MS = 7000;        // no message for this long = warn
 const SEND_INTERVAL_MS = 40;        // coalesce slider drags to ~25 updates/s
@@ -482,8 +542,9 @@ for (const id of ["connectBtn", "bleBtn", "connDot", "connLabel", "banner", "con
   "effects", "speed", "speedOut", "dirSeg", "slots", "findBtn", "morseBtn", "chirpBtn", "gaugeBtn", "cap", "capOut",
   "capNote", "autoOff", "lowBat", "bmap", "morseText", "morseNote", "wpm", "wpmOut", "mLight", "mBuzzer", "mRepeat",
   "volume", "volumeOut", "slotReadout", "slotName", "slotFav", "slotStore", "slotClear", "lookReadout", "gradBar",
-  "morseCode", "speedSeg", "animChips", "linkKind", "turboBtn", "strobeRate", "hsPad", "hsCanvas", "hsMark", "padTargetLine", "padTarget", "gradSegs", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn",
-  "temp", "fw", "board", "uptime", "boot", "heap", "batNote", "resetBtn", "log", "toast"]) ui[id] = $(id);
+  "morseCode", "speedSeg", "animChips", "pinMv", "calInfo", "bleName", "bleCount", "recBtn", "recSaveBtn", "recClearBtn", "recInfo", "calMeter", "calAddBtn", "calClearBtn", "calNote", "simPct", "simSetBtn", "simStopBtn", "linkKind", "turboBtn", "strobeRate", "hsPad", "hsCanvas", "hsMark", "padTargetLine", "padTarget", "gradSegs", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn",
+  "temp", "fw", "board", "uptime", "boot", "heap", "batNote", "resetBtn", "log", "toast",
+  "pairKey", "pairBonds", "pairWindow", "pairFails", "pairNewBtn", "pairForgetBtn", "pairNote"]) ui[id] = $(id);
 
 // ------------------------------------------------------------- utilities ---
 const clampInt = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
@@ -873,7 +934,7 @@ const app = {
   lastRxAt: 0, userClosed: false, connecting: false, helloResolver: null,
   heartbeat: 0, staleCheck: 0,
   pending: { set: null, settings: null }, timers: { set: 0, settings: 0 }, lastSendAt: { set: 0, settings: 0 },
-  editingUntil: new Map(), lastPortInfo: null, lastBleDevice: null, retryGen: 0, nextId: 1, resetArmed: 0, sel: 0, animChips: true, padTarget: "c1",
+  editingUntil: new Map(), lastPortInfo: null, lastBleDevice: null, retryGen: 0, nextId: 1, resetArmed: 0, forgetArmed: 0, passkey: null, sel: 0, animChips: true, padTarget: "c1",
 };
 
 function setConn(kind, text) {
@@ -1157,9 +1218,13 @@ function renderStatus() {
   const st = app.status;
   if (!st) return;
   const valid = typeof st.vbat === "number" && typeof st.pct === "number";
-  ui.batPill.textContent = valid ? `${st.usb ? "⚡ " : ""}${st.pct}%` : "--";
+  // On USB the reading is the charger's voltage, so a % means little: show volts.
+  ui.batPill.textContent = !valid ? "--" : st.usb ? `⚡ ${st.vbat.toFixed(2)} V` : `${st.pct}%`;
+  ui.batPill.title = !valid ? "Battery reading invalid" : st.usb ? `On USB (charging): ${st.vbat.toFixed(2)} V` : `Battery ${st.vbat.toFixed(2)} V`;
   ui.batPill.classList.toggle("low", valid && !st.usb && st.lowBattery !== "normal");
-  ui.batV.textContent = valid ? `${st.vbat.toFixed(2)} V · ${st.pct}%` : "invalid reading";
+  // 0.6+: vrest is the load-compensated estimate the % comes from; show it when the load makes a difference.
+  const rest = typeof st.vrest === "number" && Math.abs(st.vrest - st.vbat) >= 0.01 ? ` (at rest ≈ ${st.vrest.toFixed(2)} V)` : "";
+  ui.batV.textContent = valid ? `${st.vbat.toFixed(2)} V${rest} · ${st.pct}%` : "invalid reading";
   ui.lowState.textContent = st.lowBattery ?? "--";
   ui.usb.textContent = st.usb ? "connected" : "no";
   ui.charging.textContent = st.charging === null || st.charging === undefined ? "not sensed on this board"
@@ -1170,6 +1235,12 @@ function renderStatus() {
   ui.autoOffIn.textContent = st.autoOffS ? fmtDuration(st.autoOffS) : st.usb ? "paused on USB" : "not counting";
   ui.temp.textContent = typeof st.tempC === "number" ? `${st.tempC.toFixed(1)} °C` : "--";
   ui.linkKind.textContent = transport.kind === "ble" ? "Bluetooth" : transport.kind === "usb" ? "USB" : "--";
+  ui.pinMv.textContent = typeof st.pinMv === "number" ? `${st.pinMv} mV (spread ${st.pinSpreadMv ?? "?"} mV)` : "--";
+  ui.calInfo.textContent = Number.isInteger(st.calPoints) ? (st.calPoints ? `${st.calPoints}-point` : "board default") : "--";
+  ui.bleCount.textContent = Number.isFinite(st.bleConnects) ? `${st.bleConnects} / ${st.bleDrops}` : "--";
+  renderPairing(st);
+  if (st.simPct !== null && st.simPct !== undefined) ui.lowState.textContent += ` (test: pretending ${st.simPct}%)`;
+  ui.simSetBtn.disabled = ui.simStopBtn.disabled = transport.kind !== "usb";
   ui.uptime.textContent = fmtDuration(st.uptime);
   ui.heap.textContent = Number.isFinite(st.heap) ? `${Math.round(st.heap / 1024)} KB` : "--";
   ui.batNote.textContent = !valid
@@ -1178,9 +1249,21 @@ function renderStatus() {
   ui.layerNote.textContent = LAYER_LABELS[st.layer] ?? "";
 }
 
+function renderPairing(st) {
+  const usb = transport.kind === "usb", has = st && Number.isInteger(st.bonds); // 0.6+ reports pairing
+  ui.pairKey.textContent = !has ? "--" : usb ? (app.passkey ?? "--") : "shown over USB only";
+  ui.pairBonds.textContent = has ? `${st.bonds} (the light remembers up to 3; a 4th replaces the oldest)` : "--";
+  ui.pairWindow.textContent = !has ? "--" : !st.pairingOpen ? "closed: press the light's button to open for 3 min"
+    : st.usb ? "open (on USB)" : `open for ${fmtDuration(st.pairingS)}`;
+  ui.pairFails.textContent = has && Number.isInteger(st.pairFails) ? String(st.pairFails) : "--";
+  ui.pairNewBtn.disabled = ui.pairForgetBtn.disabled = !(has && usb);
+}
+
 function renderHello(h) {
   ui.fw.textContent = h.fw ?? "--";
   ui.board.textContent = h.board ?? "--";
+  ui.bleName.textContent = h.bleName ?? "--";
+  app.passkey = typeof h.passkey === "string" ? h.passkey : null;
   const boot = h.boot ?? {};
   const reasons = { poweron: "power-on", brownout: "brownout", panic: "crash", software: "software restart",
                     task_wdt: "watchdog", int_wdt: "watchdog", wdt: "watchdog", external: "reset pin",
@@ -1274,8 +1357,19 @@ function handleLine(line) {
     case "status":
       app.status = msg;
       renderStatus();
+      recordRow(msg, "");
       break;
-    case "event": onEvent(msg); break;
+    case "calibration":
+      ui.calNote.textContent = `Calibration: ${msg.points ? `${msg.points} point${msg.points > 1 ? "s" : ""}` : "board default"}, ` +
+        `gain ${Number(msg.gain).toFixed(4)}, offset ${Number(msg.offset).toFixed(3)} V` +
+        (typeof msg.vbat === "number" ? `; battery now reads ${msg.vbat.toFixed(3)} V` : "");
+      break;
+    case "pairing":
+      if (typeof msg.passkey === "string") app.passkey = msg.passkey;
+      if (app.status) Object.assign(app.status, { bonds: msg.bonds, pairingOpen: msg.open, pairingS: msg.windowS });
+      renderPairing(app.status);
+      break;
+    case "event": onEvent(msg); recordRow(null, `${msg.source}:${msg.action}`); break;
     case "error": toast(`Light says: ${msg.message ?? msg.code}`); break;
     default: break; // "ok", and types newer firmware may add
   }
@@ -1295,6 +1389,55 @@ function onEvent(e) {
                 refused_low_battery: "Won't turn on: battery too low", sleep: "The light is going to sleep" }[e.action];
     if (t) toast(t);
   } else if (e.source === "battery") toast(`Battery: ${e.action}`);
+}
+
+// ---------------------------------------------------------------- recorder ---
+// Rows kept in memory (2 s each: 10,000 rows is about 5.5 hours); saved as CSV.
+const REC_MAX_ROWS = 20000;
+const REC_COLS = ["time", "elapsed_s", "link", "vbat_V", "pct", "pin_mV", "pin_spread_mV", "usb", "low_battery", "sim_pct",
+                  "rail", "led_W", "showing", "power", "effect", "brightness", "temp_C", "heap", "uptime_s",
+                  "ble_connects", "ble_drops", "event", "vrest_V", "load_A", "ble_secure", "pair_fails"];
+const rec = { on: false, rows: [], startedAt: 0 };
+
+function recordRow(st, event) {
+  if (!rec.on) return;
+  const now = new Date();
+  const s = app.state, v = (x) => (x === null || x === undefined ? "" : x);
+  rec.rows.push([now.toISOString(), ((now - rec.startedAt) / 1000).toFixed(1), transport.kind ?? "",
+    v(st?.vbat), v(st?.pct), v(st?.pinMv), v(st?.pinSpreadMv), st ? (st.usb ? 1 : 0) : "", v(st?.lowBattery), v(st?.simPct),
+    st ? (st.rail ? 1 : 0) : "", v(st?.ledW), v(st?.layer), s ? (s.power ? 1 : 0) : "", v(s?.look?.effect), v(s?.brightness),
+    v(st?.tempC), v(st?.heap), v(st?.uptime), v(st?.bleConnects), v(st?.bleDrops), event,
+    v(st?.vrest), v(st?.loadA), st && typeof st.bleSecure === "boolean" ? (st.bleSecure ? 1 : 0) : "", v(st?.pairFails)]);
+  if (rec.rows.length > REC_MAX_ROWS) rec.rows.shift();
+  renderRecorder();
+}
+
+function renderRecorder() {
+  ui.recBtn.textContent = rec.on ? "■ Stop" : "● Record";
+  ui.recBtn.classList.toggle("on", rec.on);
+  ui.recBtn.setAttribute("aria-pressed", String(rec.on));
+  ui.recSaveBtn.disabled = ui.recClearBtn.disabled = rec.rows.length === 0 || rec.on;
+  const n = rec.rows.length;
+  ui.recInfo.textContent = n === 0 ? (rec.on ? "Recording: waiting for the first status…" : "Nothing recorded.")
+    : `${rec.on ? "Recording" : "Recorded"}: ${n} rows over ${fmtDuration(Number(rec.rows[n - 1][1]))}` +
+      (rec.rows[n - 1][3] !== "" ? `, last ${rec.rows[n - 1][3]} V` : "");
+}
+
+function csvText() {
+  const esc = (x) => (/[",\n]/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : String(x));
+  return [REC_COLS, ...rec.rows].map((r) => r.map(esc).join(",")).join("\n") + "\n";
+}
+
+function saveCsv() {
+  const blob = new Blob([csvText()], { type: "text/csv" });
+  const a = document.createElement("a");
+  const t = new Date(rec.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  a.href = URL.createObjectURL(blob);
+  a.download = `yona-log-${t}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 }
 
 function send(obj) {
@@ -1342,29 +1485,53 @@ function queueSettings(fields, immediate = false) {
   queue("settings", fields, immediate);
 }
 
+// Listens for the hello reply at once (it can beat the write's own completion),
+// but only starts the clock with arm(), once the write has gone out.
 function waitForHello() {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { app.helloResolver = null; reject(new Error("timeout")); }, HELLO_TIMEOUT_MS);
-    app.helloResolver = (msg) => { clearTimeout(timer); app.helloResolver = null; resolve(msg); };
-  });
+  let timer = null, settled = false, resolveFn, rejectFn;
+  const promise = new Promise((resolve, reject) => { resolveFn = resolve; rejectFn = reject; });
+  const mine = (msg) => { settled = true; clearTimeout(timer); if (app.helloResolver === mine) app.helloResolver = null; resolveFn(msg); };
+  app.helloResolver = mine;
+  return {
+    promise,
+    arm(ms) {
+      if (settled) return;
+      timer = setTimeout(() => {
+        settled = true;
+        if (app.helloResolver === mine) app.helloResolver = null;
+        rejectFn(new Error("timeout"));
+      }, ms);
+    },
+  };
 }
 
 async function handshake() {
-  for (let attempt = 1; attempt <= HELLO_ATTEMPTS; attempt++) {
+  const ble = transport.kind === "ble";
+  const attempts = ble ? BLE_HELLO_ATTEMPTS : HELLO_ATTEMPTS;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     const wait = waitForHello();
-    await send({ cmd: "hello", id: app.nextId++ });
+    const sent = send({ cmd: "hello", id: app.nextId++ });
+    if (ble) {
+      const hint = setTimeout(() => setConn("warn", PAIRING_HINT), PAIRING_HINT_AFTER_MS);
+      try { await withTimeout(sent, BLE_PAIRING_TIMEOUT_MS, "Pairing"); } finally { clearTimeout(hint); }
+    } else {
+      await sent;
+    }
+    wait.arm(ble ? BLE_HELLO_TIMEOUT_MS : HELLO_TIMEOUT_MS);
     try {
-      const h = await wait;
+      const h = await wait.promise;
       if (h.proto !== PROTOCOL_VERSION) throw new Error("proto");
       return h;
     } catch (err) {
       if (err.message === "proto") throw new Error(ui.banner.textContent);
       log(`no hello reply (attempt ${attempt})`, "err");
+      if (ble) setConn("warn", PAIRING_HINT);
     }
     if (!transport.open) throw new Error("closed");
   }
-  throw new Error(transport.kind === "ble"
-    ? "The light did not answer over Bluetooth. Is firmware 0.5 or later uploaded?"
+  throw new Error(ble
+    ? "The light didn't answer over Bluetooth. If you were asked for a passkey, it's in Settings › Bluetooth pairing (over USB), " +
+      "and new pairings only work within 3 minutes of pressing the light's button. (Bluetooth needs firmware 0.5 or later.)"
     : "The light did not answer. Is firmware 0.4 or later uploaded?");
 }
 
@@ -1414,6 +1581,8 @@ async function connect(kind, target, quiet = false) {
   try {
     await handshake();
     startTimers();
+    if (app.hello.bleName !== undefined) send({ cmd: "calibrate", op: "get" }); // 0.5.1+ only
+    if (kind === "usb" && typeof app.hello.passkey === "string") send({ cmd: "pairing", op: "get" }); // 0.6+
     setConn("ok", `Connected${kind === "ble" ? " (Bluetooth)" : ""} · fw ${app.hello.fw}`);
     return true;
   } catch (err) {
@@ -1481,8 +1650,10 @@ async function bleReconnect() {
 function resetDisplay() {
   app.hello = app.state = app.settings = app.status = null;
   app.slots = [];
-  for (const id of ["linkKind", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn", "temp", "fw", "board",
-                    "uptime", "boot", "heap", "batPill"]) ui[id].textContent = "--";
+  for (const id of ["pinMv", "calInfo", "bleName", "bleCount", "linkKind", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn", "temp", "fw", "board",
+                    "uptime", "boot", "heap", "batPill", "pairKey", "pairBonds", "pairWindow", "pairFails"]) ui[id].textContent = "--";
+  app.passkey = null;
+  ui.pairNewBtn.disabled = ui.pairForgetBtn.disabled = true;
   ui.batNote.textContent = ui.layerNote.textContent = "";
   ui.batPill.classList.remove("low");
   buildSlots();
@@ -1604,6 +1775,45 @@ function wireControls() {
   });
 
   // Two taps, no dialog: the first arms the button for a few seconds.
+  ui.recBtn.addEventListener("click", () => {
+    if (!rec.on && rec.rows.length === 0) rec.startedAt = Date.now();
+    rec.on = !rec.on;
+    renderRecorder();
+  });
+  ui.recSaveBtn.addEventListener("click", saveCsv);
+  ui.recClearBtn.addEventListener("click", () => { rec.rows = []; renderRecorder(); });
+  ui.calAddBtn.addEventListener("click", () => {
+    const v = Number(String(ui.calMeter.value).replace(",", "."));
+    if (!Number.isFinite(v) || v < 2.8 || v > 4.4) { ui.calNote.textContent = "Type the meter's reading in volts, 2.8–4.4 (e.g. 3.92)."; return; }
+    send({ cmd: "calibrate", op: "point", meterV: Math.round(v * 1000) / 1000 });
+  });
+  ui.calClearBtn.addEventListener("click", () => send({ cmd: "calibrate", op: "clear" }));
+  ui.simSetBtn.addEventListener("click", () => {
+    const p = Number(ui.simPct.value);
+    if (!Number.isInteger(p) || p < 0 || p > 100) { toast("Pretend battery %: a whole number 0–100"); return; }
+    send({ cmd: "test", batteryPct: p });
+  });
+  ui.simStopBtn.addEventListener("click", () => send({ cmd: "test", batteryPct: null }));
+  ui.pairNewBtn.addEventListener("click", () => send({ cmd: "pairing", op: "newPasskey" }));
+  ui.pairForgetBtn.addEventListener("click", () => {
+    if (performance.now() < app.forgetArmed) {
+      app.forgetArmed = 0;
+      ui.pairForgetBtn.classList.remove("armed");
+      ui.pairForgetBtn.textContent = "Forget all devices";
+      send({ cmd: "pairing", op: "forget", confirm: "FORGET" });
+      toast("Paired devices forgotten. On each phone or computer, forget \"Yona Light\" too before pairing again.");
+      return;
+    }
+    app.forgetArmed = performance.now() + RESET_ARM_MS;
+    ui.pairForgetBtn.classList.add("armed");
+    ui.pairForgetBtn.textContent = "Tap again to forget all";
+    setTimeout(() => {
+      if (performance.now() >= app.forgetArmed) {
+        ui.pairForgetBtn.classList.remove("armed");
+        ui.pairForgetBtn.textContent = "Forget all devices";
+      }
+    }, RESET_ARM_MS + 50);
+  });
   ui.resetBtn.addEventListener("click", () => {
     if (performance.now() < app.resetArmed) {
       app.resetArmed = 0;
