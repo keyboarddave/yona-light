@@ -446,7 +446,7 @@
 
       <section>
         <h2>Reset</h2>
-        <p class="note" style="margin-top:0">Puts every setting and all 8 memory slots back to the factory defaults. Battery calibration and the passkey are kept. Over USB it also forgets paired Bluetooth devices; over Bluetooth it doesn't, so the phone doing it isn't locked out.</p>
+        <p class="note" style="margin-top:0">Puts every setting and all the memory slots back to the factory defaults. Battery calibration and the passkey are kept. Over USB it also forgets paired Bluetooth devices; over Bluetooth it doesn't, so the phone doing it isn't locked out.</p>
         <div class="actions" style="margin-top:10px"><button type="button" id="resetBtn" class="danger">Factory reset</button></div>
       </section>
 
@@ -477,7 +477,7 @@ const PROTOCOL_VERSION = 2;
 const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
 // This page's own version: bump with every change, so it's easy to tell which copy
 // (the folder's or the one published on GitHub) a browser is running.
-const PAGE_VERSION = "2.5";
+const PAGE_VERSION = "2.6";
 const HELLO_TIMEOUT_MS = 2500;
 const HELLO_ATTEMPTS = 3;
 // Bluetooth with pairing (fw 0.6+): the first write can sit behind the system's
