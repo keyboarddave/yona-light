@@ -377,6 +377,7 @@
           <dt>Connected by</dt><dd id="linkKind">--</dd>
           <dt>Bluetooth name</dt><dd id="bleName">--</dd>
           <dt>Bluetooth connects / drops</dt><dd id="bleCount">--</dd>
+          <dt>Page</dt><dd id="pageVer">--</dd>
           <dt>Firmware</dt><dd id="fw">--</dd>
           <dt>Board</dt><dd id="board">--</dd>
           <dt>Up for</dt><dd id="uptime">--</dd>
@@ -454,6 +455,12 @@
           <summary>Serial log</summary>
           <div id="log" aria-live="off"></div>
         </details>
+        <div id="fileLogBox" hidden>
+          <div class="actions" style="margin-top:10px">
+            <button type="button" id="fileLogBtn">Log to file…</button>
+          </div>
+          <p class="note" id="fileLogInfo">Writes every line in and out, with the time and the link, to a text file you choose (e.g. a <code>logs</code> folder in the project), as it happens. Chrome on a computer only.</p>
+        </div>
       </section>
     </div>
   </div>
@@ -468,6 +475,9 @@
 // ----------------------------------------------------------------- config ---
 const PROTOCOL_VERSION = 2;
 const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
+// This page's own version: bump with every change, so it's easy to tell which copy
+// (the folder's or the one published on GitHub) a browser is running.
+const PAGE_VERSION = "2.5";
 const HELLO_TIMEOUT_MS = 2500;
 const HELLO_ATTEMPTS = 3;
 // Bluetooth with pairing (fw 0.6+): the first write can sit behind the system's
@@ -544,7 +554,9 @@ for (const id of ["connectBtn", "bleBtn", "connDot", "connLabel", "banner", "con
   "volume", "volumeOut", "slotReadout", "slotName", "slotFav", "slotStore", "slotClear", "lookReadout", "gradBar",
   "morseCode", "speedSeg", "animChips", "pinMv", "calInfo", "bleName", "bleCount", "recBtn", "recSaveBtn", "recClearBtn", "recInfo", "calMeter", "calAddBtn", "calClearBtn", "calNote", "simPct", "simSetBtn", "simStopBtn", "linkKind", "turboBtn", "strobeRate", "hsPad", "hsCanvas", "hsMark", "padTargetLine", "padTarget", "gradSegs", "batV", "lowState", "usb", "charging", "rail", "ledW", "layer", "autoOffIn",
   "temp", "fw", "board", "uptime", "boot", "heap", "batNote", "resetBtn", "log", "toast",
-  "pairKey", "pairBonds", "pairWindow", "pairFails", "pairNewBtn", "pairForgetBtn", "pairNote"]) ui[id] = $(id);
+  "pairKey", "pairBonds", "pairWindow", "pairFails", "pairNewBtn", "pairForgetBtn", "pairNote",
+  "fileLogBox", "fileLogBtn", "fileLogInfo", "pageVer"]) ui[id] = $(id);
+ui.pageVer.textContent = `v${PAGE_VERSION}`;  // known without a light: set once, never reset
 
 // ------------------------------------------------------------- utilities ---
 const clampInt = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(Number(v) || 0)));
@@ -577,7 +589,93 @@ function showBanner(text) {
   ui.banner.textContent = text;
   ui.banner.classList.toggle("show", Boolean(text));
 }
+// ------------------------------------------------------------ log to file ---
+// File System Access API (Chrome on a computer). A writable stream only reaches
+// the disk when closed, so lines are buffered and appended in batches: each
+// flush reopens the file keeping its contents, seeks to the end, writes, closes.
+// That way the file on disk is never more than FILE_LOG_FLUSH_MS behind.
+const FILE_LOG_FLUSH_MS = 2000;
+const FILE_LOG_MAX_BUFFER = 5000;  // lines held if the disk stalls; oldest dropped beyond this
+const fileLog = { handle: null, buf: [], timer: null, flushing: false, lines: 0, dropped: 0, error: null };
+
+function fileLogStamp() {
+  const d = new Date(), p = (n, w = 2) => String(n).padStart(w, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+}
+
+function fileLogAdd(text, cls) {
+  if (!fileLog.handle) return;
+  const dir = cls === "tx" ? "" : cls === "err" ? "!! " : cls === "txt" ? "## " : "";
+  fileLog.buf.push(`${fileLogStamp()} [${transport?.kind ?? "-"}] ${dir}${text}`);
+  if (fileLog.buf.length > FILE_LOG_MAX_BUFFER) { fileLog.buf.shift(); fileLog.dropped++; }
+}
+
+async function fileLogFlush() {
+  if (!fileLog.handle || fileLog.flushing || fileLog.buf.length === 0) return;
+  fileLog.flushing = true;
+  const batch = fileLog.buf.splice(0, fileLog.buf.length);
+  try {
+    const size = (await fileLog.handle.getFile()).size;
+    const w = await fileLog.handle.createWritable({ keepExistingData: true });
+    await w.seek(size);
+    await w.write(batch.join("\n") + "\n");
+    await w.close();
+    fileLog.lines += batch.length;
+    fileLog.error = null;
+  } catch (err) {
+    fileLog.buf.unshift(...batch);  // keep them for the next try
+    while (fileLog.buf.length > FILE_LOG_MAX_BUFFER) { fileLog.buf.shift(); fileLog.dropped++; }
+    fileLog.error = err?.message ?? String(err);
+  } finally {
+    fileLog.flushing = false;
+    renderFileLog();
+  }
+}
+
+async function fileLogStart() {
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  let handle;
+  try {
+    handle = await window.showSaveFilePicker({
+      suggestedName: `yona-log-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.txt`,
+      types: [{ description: "Text log", accept: { "text/plain": [".txt"] } }],
+    });
+  } catch (err) {
+    if (err?.name !== "AbortError") toast(`Couldn't open a log file: ${err?.message ?? err}`);
+    return;
+  }
+  Object.assign(fileLog, { handle, buf: [], lines: 0, dropped: 0, error: null, name: handle.name });
+  fileLogAdd(`log started: page v${PAGE_VERSION}, connected by ${transport.kind ?? "nothing"}, fw ${app.hello?.fw ?? "?"}`, "txt");
+  fileLog.timer = setInterval(fileLogFlush, FILE_LOG_FLUSH_MS);
+  await fileLogFlush();
+  renderFileLog();
+}
+
+async function fileLogStop() {
+  if (!fileLog.handle) return;
+  fileLogAdd("log stopped", "txt");
+  clearInterval(fileLog.timer);
+  fileLog.timer = null;
+  await fileLogFlush();
+  fileLog.handle = null;
+  renderFileLog();
+}
+
+function renderFileLog() {
+  const on = !!fileLog.handle;
+  ui.fileLogBtn.textContent = on ? "■ Stop logging" : "Log to file…";
+  ui.fileLogBtn.classList.toggle("on", on);
+  if (!on) {
+    if (fileLog.name) ui.fileLogInfo.textContent = `Stopped. ${fileLog.lines} lines are in ${fileLog.name}.`;
+    return;
+  }
+  ui.fileLogInfo.textContent = fileLog.error
+    ? `Can't write to ${fileLog.name} (${fileLog.error}); holding ${fileLog.buf.length} lines and retrying.`
+    : `Logging to ${fileLog.name}: ${fileLog.lines} lines written` + (fileLog.dropped ? `, ${fileLog.dropped} dropped while the disk was busy.` : ".");
+}
+
 function log(text, cls = "") {
+  fileLogAdd(text, cls);
   const line = document.createElement("div");
   if (cls) line.className = cls;
   line.textContent = text;
@@ -1794,6 +1892,12 @@ function wireControls() {
     send({ cmd: "test", batteryPct: p });
   });
   ui.simStopBtn.addEventListener("click", () => send({ cmd: "test", batteryPct: null }));
+  if (typeof window.showSaveFilePicker === "function") {
+    ui.fileLogBox.hidden = false;
+    ui.fileLogBtn.addEventListener("click", () => (fileLog.handle ? fileLogStop() : fileLogStart()));
+    // Last lines out before the tab closes (best effort: the page may not get the time).
+    window.addEventListener("pagehide", () => { if (fileLog.handle) fileLogFlush(); });
+  }
   ui.pairNewBtn.addEventListener("click", () => send({ cmd: "pairing", op: "newPasskey" }));
   ui.pairForgetBtn.addEventListener("click", () => {
     if (performance.now() < app.forgetArmed) {
