@@ -477,7 +477,7 @@ const PROTOCOL_VERSION = 2;
 const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
 // This page's own version: bump with every change, so it's easy to tell which copy
 // (the folder's or the one published on GitHub) a browser is running.
-const PAGE_VERSION = "2.6";
+const PAGE_VERSION = "2.7";
 const HELLO_TIMEOUT_MS = 2500;
 const HELLO_ATTEMPTS = 3;
 // Bluetooth with pairing (fw 0.6+): the first write can sit behind the system's
@@ -1729,19 +1729,27 @@ async function onBleClick() {
 
 // Bluetooth drops (out of range, the light restarted) are retried quietly a few
 // times with the same device, which needs no chooser.
-const BLE_RETRIES = 5, BLE_RETRY_MS = 3000;
+// After a drop (out of range, light asleep, radio hiccup) keep trying for a while:
+// walking back from the end of the garden takes minutes, not the 15 s the first
+// version allowed (bench, 2026-10-25). Quick tries first, then a slower pace.
+// Each try also costs up to BLE_STEP_TIMEOUT_MS while the light is out of range.
+const BLE_RECONNECT_FOR_MS = 5 * 60 * 1000;
+const BLE_RETRY_FAST_MS = 3000, BLE_RETRY_SLOW_MS = 10000, BLE_FAST_TRIES = 5;
+
 async function bleReconnect() {
   const gen = ++app.retryGen; // a newer click or loop makes this one stop
   const live = () => gen === app.retryGen && !app.userClosed && !transport.open;
-  for (let i = 1; i <= BLE_RETRIES && live(); i++) {
-    setConn("warn", `Bluetooth lost: reconnecting (${i}/${BLE_RETRIES})…`);
-    await new Promise((r) => setTimeout(r, BLE_RETRY_MS));
+  const started = performance.now();
+  for (let i = 1; live() && performance.now() - started < BLE_RECONNECT_FOR_MS; i++) {
+    const left = Math.max(0, Math.ceil((BLE_RECONNECT_FOR_MS - (performance.now() - started)) / 1000));
+    setConn("warn", `Bluetooth lost: reconnecting (try ${i}, giving up in ${fmtDuration(left)})…`);
+    await new Promise((r) => setTimeout(r, i <= BLE_FAST_TRIES ? BLE_RETRY_FAST_MS : BLE_RETRY_SLOW_MS));
     if (!live()) return;
     if (await connect("ble", app.lastBleDevice, true)) return;
   }
   if (live()) {
     setConn("bad", "Disconnected");
-    showBanner("Couldn't reconnect over Bluetooth. Check the light is on and in range, then click Bluetooth (or USB).");
+    showBanner("Couldn't reconnect over Bluetooth for 5 minutes. Check the light is on (a button press wakes it) and in range, then click Bluetooth (or USB).");
   }
 }
 
