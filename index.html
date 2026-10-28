@@ -31,20 +31,36 @@
          font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line);
            background: var(--panel); position: sticky; top: 0; z-index: 3; flex-wrap: wrap; }
-  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; line-height: 1.2; }
+  header .ident { display: flex; flex-direction: column; min-width: 0; }
+  header .conn { display: flex; gap: 8px; }
+  header .conn [hidden] { display: none; }
+  /* Phone: identity, battery, theme and cog on one row; the link buttons on a second row. */
+  @media (max-width: 560px) {
+    header { gap: 8px 10px; padding: 8px 12px; }
+    header .conn { flex-basis: 100%; justify-content: flex-end; }
+    header .ident { flex: 1 1 0; }
+    header .spacer { display: none; }
+    header .conn button { padding: 6px 12px; }
+    #connLabel { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
   header .spacer { flex: 1; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
   .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
-  #connLabel { color: var(--muted); font-size: 14px; }
+  #connLabel { color: var(--muted); font-size: 13.5px; }
   #batPill { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; padding: 4px 10px;
              border-radius: 999px; background: var(--chip); border: 1px solid var(--line); }
   #batPill.low { color: var(--bad); border-color: var(--bad); }
-  nav.tabs { display: flex; gap: 4px; max-width: 1060px; margin: 14px auto 0; padding: 0 16px; }
-  nav.tabs button { border-radius: 10px 10px 0 0; border-bottom: 0; }
-  nav.tabs button[aria-selected="true"] { background: var(--panel); font-weight: 600; }
+  /* Live preview in the sticky header: the output stays in view wherever the page is scrolled. */
+  .ring.mini { width: 44px; height: 44px; box-shadow: inset 0 0 0 2px var(--line); }
+  .ring.mini span { width: 9px; height: 9px; border-radius: 30%; }
+  #cogBtn { padding: 6px 9px; line-height: 0; }
+  #cogBtn svg { width: 20px; height: 20px; }
+  #cogBtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .settingshead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .settingshead h2 { margin: 0; font-size: 18px; text-transform: none; letter-spacing: 0; color: var(--ink); }
   main { max-width: 1060px; margin: 0 auto; padding: 0 16px 40px; }
-  .page { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); padding-top: 16px;
-          border-top: 1px solid var(--line); }
+  .page { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); padding-top: 16px; }
   .page[hidden] { display: none; }
   @media (max-width: 820px) { .page { grid-template-columns: 1fr; } }
   section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
@@ -187,26 +203,30 @@
 </head>
 <body>
 <header>
-  <span class="dot" id="connDot" aria-hidden="true"></span>
-  <h1>Yona Light</h1>
-  <span id="connLabel">Not connected</span>
+  <div class="ring mini" id="miniRing" role="img" aria-label="Live preview of the light" title="What the light is showing"></div>
+  <div class="ident">
+    <h1><span class="dot" id="connDot" aria-hidden="true"></span>Yona Light</h1>
+    <span id="connLabel">Not connected</span>
+  </div>
   <span class="spacer"></span>
   <span id="batPill" title="Battery">--</span>
   <button id="themeBtn" type="button" title="Appearance: follow the system, or force dark or light">Auto</button>
-  <button id="connectBtn" type="button" class="primary" title="Connect over a USB cable">USB</button>
-  <button id="bleBtn" type="button" class="primary" title="Connect over Bluetooth">Bluetooth</button>
+  <button id="cogBtn" type="button" aria-pressed="false" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a7.4 7.4 0 0 0-1.7-1L14.4 2.4a.5.5 0 0 0-.5-.4h-4a.5.5 0 0 0-.5.4L9 5.1a7.4 7.4 0 0 0-1.7 1l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6a.5.5 0 0 0-.1.6l2 3.5c.1.2.4.3.6.2l2.5-1c.5.4 1.1.7 1.7 1l.4 2.7c0 .2.2.4.5.4h4c.3 0 .5-.2.5-.4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+  </button>
+  <div class="conn">
+    <button id="connectBtn" type="button" class="primary" title="Connect over a USB cable">USB</button>
+    <button id="bleBtn" type="button" class="primary" title="Connect over Bluetooth">Bluetooth</button>
+    <button id="demoBtn" type="button" title="Try the page with a pretend light: no hardware needed">Demo</button>
+  </div>
 </header>
 <div id="banner" role="alert"></div>
 
-<nav class="tabs" role="tablist">
-  <button type="button" role="tab" id="tabLight" aria-selected="true" aria-controls="pageLight">Light</button>
-  <button type="button" role="tab" id="tabSettings" aria-selected="false" aria-controls="pageSettings">Settings</button>
-</nav>
 
 <main>
 <fieldset id="controls" disabled>
   <!-- =============================== LIGHT =============================== -->
-  <div class="page light" id="pageLight" role="tabpanel" aria-labelledby="tabLight">
+  <div class="page light" id="pageLight" aria-label="Light">
     <section class="full memory">
       <div class="memhead">
         <h2>Memory</h2>
@@ -330,7 +350,11 @@
   </div>
 
   <!-- ============================= SETTINGS ============================= -->
-  <div class="page" id="pageSettings" role="tabpanel" aria-labelledby="tabSettings" hidden>
+  <div class="page" id="pageSettings" aria-label="Settings" hidden>
+    <div class="full settingshead">
+      <h2>Settings</h2>
+      <button type="button" id="settingsDone" class="primary">Done</button>
+    </div>
     <div class="stack">
       <section>
         <h2>Safety</h2>
@@ -477,7 +501,7 @@ const PROTOCOL_VERSION = 2;
 const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
 // This page's own version: bump with every change, so it's easy to tell which copy
 // (the folder's or the one published on GitHub) a browser is running.
-const PAGE_VERSION = "2.7";
+const PAGE_VERSION = "2.8";
 const HELLO_TIMEOUT_MS = 2500;
 const HELLO_ATTEMPTS = 3;
 // Bluetooth with pairing (fw 0.6+): the first write can sit behind the system's
@@ -514,7 +538,7 @@ const DEFAULT_LISTS = {
   lowBattery: ["dim20_blink10_off5", "blink15_off5", "off10"],
 };
 const DEFAULT_LIMITS = { brightnessMax: 100, speedMax: 100, wpmMin: 5, wpmMax: 25, capMin: 10, capMax: 100,
-                         autoOffMax: 120, volumeMax: 100, slots: 8, slotNameMax: 16, morseMax: 32, budgetW: 0.5, leds: 6,
+                         autoOffMax: 120, volumeMax: 100, slots: 16, slotNameMax: 16, morseMax: 32, budgetW: 0.5, leds: 6,
                          strobeMaxHz: 4, turboMaxHz: 18 };
 const LABELS = {
   next_fav: "Next favourite", prev_fav: "Previous favourite", flashlight: "Flashlight on/off", power: "Power off",
@@ -546,7 +570,7 @@ const svg = (name) => `<svg viewBox="0 0 20 20" aria-hidden="true">${ICONS[name]
 // ------------------------------------------------------------------- dom ---
 const $ = (id) => document.getElementById(id);
 const ui = {};
-for (const id of ["connectBtn", "bleBtn", "connDot", "connLabel", "banner", "controls", "batPill", "tabLight", "tabSettings",
+for (const id of ["connectBtn", "bleBtn", "connDot", "connLabel", "banner", "controls", "batPill", "cogBtn", "demoBtn", "miniRing", "settingsDone",
   "pageLight", "pageSettings", "liveRing", "powerBtn", "flashBtn", "brightness", "brightnessOut", "layerNote",
   "sourceSeg", "solidBox", "gradBox", "colour", "swatches", "white", "whiteOut", "c1", "c2", "swapBtn", "spreadSeg",
   "effects", "speed", "speedOut", "dirSeg", "slots", "findBtn", "morseBtn", "chirpBtn", "gaugeBtn", "cap", "capOut",
@@ -882,7 +906,7 @@ function withTimeout(promise, ms, what) {
 }
 
 class Transport extends EventTarget {
-  #kind = null;     // "usb" | "ble" | null
+  #kind = null;     // "usb" | "ble" | "demo" | null
   #port = null;     // SerialPort
   #reader = null;
   #writer = null;
@@ -902,11 +926,11 @@ class Transport extends EventTarget {
   get device() { return this.#device; }
   get open() { return this.#kind !== null && !this.#closing; }
 
-  async openPort(port) {
+  async openPort(port, kind = "usb") { // kind "demo": the page's pretend light, same stream shape
     if (this.#kind) throw new Error("already open");
     await port.open({ baudRate: 115200 }); // baud is ignored by native USB CDC but required by the API
     this.#port = port;
-    this.#kind = "usb";
+    this.#kind = kind;
     this.#closing = false;
     this.#writer = port.writable.getWriter();
     this.#readLoopDone = this.#readLoop();
@@ -967,7 +991,7 @@ class Transport extends EventTarget {
   }
 
   async #writeBytes(bytes) {
-    if (this.#kind === "usb") {
+    if (this.#kind !== "ble") {
       if (!this.#writer) throw new Error("not connected");
       await this.#writer.write(bytes);
       return;
@@ -999,7 +1023,7 @@ class Transport extends EventTarget {
   async close(reason = "user") {
     if (!this.#kind || this.#closing) return;
     this.#closing = true;
-    if (this.#kind === "usb") {
+    if (this.#kind !== "ble") {
       const port = this.#port;
       try { await this.#reader?.cancel(); } catch { /* stream already errored */ }
       try { await this.#readLoopDone; } catch { /* reported already */ }
@@ -1024,6 +1048,156 @@ class Transport extends EventTarget {
   }
 }
 
+// ------------------------------------------------------------- demo light ---
+// A pretend light that lives in the page, for trying the controls with no hardware. It speaks the same
+// protocol 2 as the firmware over a stream shaped like a serial port, so the page works exactly as it
+// does with a real light: replies, slots, settings, Find and Morse. Nothing is saved anywhere.
+class DemoPort {
+  #ctrl = null; #buf = ""; #enc = new TextEncoder(); #dec = new TextDecoder(); #t0 = performance.now();
+  #morseTimer = 0; #findTimer = 0;
+  constructor() { this.#reset(); }
+  #reset() {
+    const look = (o) => ({ source: "solid", color: [255, 80, 0, 0], c1: [255, 61, 0, 0], c2: [255, 176, 0, 0],
+                           spread: "linear", effect: "static", speed: 35, direction: "cw", ...o });
+    const mk = (name, fav, l) => ({ used: true, name, fav, look: look(l) });
+    this.state = { power: true, brightness: 60, flashlight: false, slot: 2, find: false, morse: false,
+                   look: look({ source: "gradient", spread: "mirror", effect: "wave" }) };
+    this.settings = { capPct: 70, autoOffMin: 60, lowBattery: "dim20_blink10_off5", volume: 35, turboStrobe: false,
+                      buttons: { short: "next_fav", double: "flashlight", long: "find", hold: "power" },
+                      morse: { text: "YONA", wpm: 12, light: true, buzzer: false, repeat: true } };
+    this.slots = [
+      mk("Walk White", true, { color: [0, 0, 0, 200] }),
+      mk("Traffic", true, { color: [255, 90, 0, 60], effect: "strobe" }),
+      mk("Ember", true, { source: "gradient", spread: "mirror", effect: "wave" }),
+      mk("Ocean", false, { source: "gradient", c1: [0, 71, 255, 0], c2: [0, 224, 198, 0], spread: "mirror", effect: "spin" }),
+      mk("Police", false, { effect: "police" }),
+      mk("Rainbow", true, { effect: "rainbow", speed: 30 }),
+      mk("Heartbeat", false, { color: [255, 0, 40, 0], effect: "pulse", speed: 20 }),
+      mk("Lime chase", false, { color: [120, 255, 0, 0], effect: "chase", speed: 55 }),
+      ...Array.from({ length: 8 }, () => ({ used: false, name: "", fav: false, look: null }))];
+  }
+  getInfo() { return {}; }
+  async open() {
+    this.readable = new ReadableStream({ start: (c) => { this.#ctrl = c; } });
+    this.writable = new WritableStream({ write: (chunk) => {
+      this.#buf += this.#dec.decode(chunk);
+      let i;
+      while ((i = this.#buf.indexOf("\n")) >= 0) {
+        const line = this.#buf.slice(0, i); this.#buf = this.#buf.slice(i + 1);
+        setTimeout(() => this.#onLine(line), 15); // a little latency, like a real link
+      }
+    } });
+  }
+  async close() { clearTimeout(this.#morseTimer); clearTimeout(this.#findTimer); try { this.#ctrl.close(); } catch { /* closed */ } }
+  #emit(o) { try { this.#ctrl.enqueue(this.#enc.encode(JSON.stringify(o) + "\r\n")); } catch { /* closed */ } }
+  #err(id, code, message) { this.#emit({ type: "error", code, message, id }); }
+  #stateMsg(id) { return { type: "state", ...structuredClone(this.state), ...(id !== undefined && { id }) }; }
+  #settingsMsg(id) { return { type: "settings", ...structuredClone(this.settings), ...(id !== undefined && { id }) }; }
+  #slotMsg(i, id) { return { type: "slot", index: i, ...structuredClone(this.slots[i]), ...(id !== undefined && { id }) }; }
+  #status(id) {
+    const s = this.state, up = (performance.now() - this.#t0) / 1000;
+    const layer = s.find ? "find" : s.morse && this.settings.morse.light ? "morse" : !s.power ? "off" : s.flashlight ? "flashlight" : "look";
+    const ledW = layer === "off" ? 0 : +(0.05 + 0.4 * s.brightness / 100).toFixed(2);
+    const pct = Math.max(5, Math.round(78 - up / 120)); // drains 1% every 2 minutes, for something to watch
+    return { type: "status", vbat: +(3.55 + pct * 0.0065).toFixed(2), pct, usb: false, charging: null, lowBattery: "normal",
+             rail: layer !== "off", ledW, layer, tempC: 30.5, autoOffS: this.settings.autoOffMin * 60, uptime: Math.round(up),
+             heap: 286000, vrest: +(3.57 + pct * 0.0065).toFixed(2), loadA: +(ledW / 3.7).toFixed(2),
+             ...(id !== undefined && { id }) };
+  }
+  #endMorseLater() { // a one-pass message ends by itself, as on the light
+    clearTimeout(this.#morseTimer);
+    if (!this.state.morse || this.settings.morse.repeat) return;
+    const run = morseTimeline(this.settings.morse.text, this.settings.morse.wpm);
+    this.#morseTimer = setTimeout(() => {
+      this.state.morse = false;
+      this.#emit({ type: "event", source: "morse", action: "done" });
+      this.#emit(this.#stateMsg());
+    }, run.total);
+  }
+  #onLine(line) {
+    let r;
+    try { r = JSON.parse(line); } catch { return this.#err(undefined, "bad_json", "not JSON"); }
+    const id = r.id, L = DEFAULT_LISTS;
+    const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+    switch (r.cmd) {
+      case "hello":
+        this.#emit({ type: "hello", proto: PROTOCOL_VERSION, fw: "demo", board: "Demo light (pretend, in this page)", lists: L,
+                     limits: { ...DEFAULT_LIMITS, slots: 16 }, boot: { reason: "poweron", count: 1, prevRunS: null }, id });
+        this.#emit(this.#stateMsg()); this.#emit(this.#settingsMsg());
+        for (let i = 0; i < 16; i++) this.#emit(this.#slotMsg(i));
+        this.#emit(this.#status());
+        break;
+      case "status": case "gauge": this.#emit(this.#status(id)); break;
+      case "get": this.#emit(this.#stateMsg(id)); this.#emit(this.#settingsMsg()); break;
+      case "set": {
+        const n = structuredClone(this.state);
+        if ("power" in r) n.power = !!r.power;
+        if ("brightness" in r) { if (!int(r.brightness, 0, 100)) return this.#err(id, "bad_value", "brightness must be 0-100"); n.brightness = r.brightness; }
+        if ("flashlight" in r) n.flashlight = !!r.flashlight;
+        if (r.look) {
+          for (const [k, list] of [["source", L.sources], ["spread", L.spreads], ["effect", L.effects], ["direction", L.directions]])
+            if (k in r.look && list.includes(r.look[k])) n.look[k] = r.look[k];
+          for (const k of ["color", "c1", "c2"]) if (Array.isArray(r.look[k])) n.look[k] = [0, 1, 2, 3].map((j) => r.look[k][j] ?? 0);
+          if (int(r.look.speed, 0, 100)) n.look.speed = r.look.speed;
+          n.slot = null;
+        }
+        this.state = n; this.#emit(this.#stateMsg(id)); break;
+      }
+      case "settings": {
+        const n = structuredClone(this.settings);
+        for (const k of ["capPct", "autoOffMin", "volume"]) if (k in r) n[k] = r[k];
+        if ("lowBattery" in r) n.lowBattery = r.lowBattery;
+        if ("turboStrobe" in r) n.turboStrobe = !!r.turboStrobe;
+        if (r.buttons) Object.assign(n.buttons, r.buttons);
+        if (r.morse) {
+          if ("text" in r.morse) { const c = cleanMorse(r.morse.text); if (!c) return this.#err(id, "bad_value", "morse.text needs at least one letter or digit"); n.morse.text = c; }
+          for (const k of ["wpm", "light", "buzzer", "repeat"]) if (k in r.morse) n.morse[k] = r.morse[k];
+        }
+        this.settings = n; this.#emit(this.#settingsMsg(id)); break;
+      }
+      case "slot": {
+        const i = r.index, s = this.slots[i];
+        if (!int(i, 0, 15)) return this.#err(id, "bad_value", "index must be 0-15");
+        if (r.op === "recall") {
+          if (!s.used) return this.#err(id, "bad_value", "slot is empty");
+          Object.assign(this.state, { look: structuredClone(s.look), flashlight: false, slot: i }); this.#emit(this.#stateMsg(id));
+        } else if (r.op === "store") {
+          Object.assign(s, { used: true, name: (r.name ?? s.name) || `Look ${i + 1}`, look: structuredClone(this.state.look) });
+          this.state.slot = i; this.#emit(this.#slotMsg(i, id)); this.#emit(this.#stateMsg());
+        } else if (r.op === "rename" || r.op === "fav") {
+          if (!s.used) return this.#err(id, "bad_value", "slot is empty");
+          if (r.op === "rename") s.name = r.name; else s.fav = !!r.fav;
+          this.#emit(this.#slotMsg(i, id));
+        } else if (r.op === "clear") {
+          this.slots[i] = { used: false, name: "", fav: false, look: null };
+          if (this.state.slot === i) this.state.slot = null;
+          this.#emit(this.#slotMsg(i, id)); this.#emit(this.#stateMsg());
+        } else return this.#err(id, "bad_request", "op must be recall, store, rename, fav or clear");
+        break;
+      }
+      case "find":
+        this.state.find = !!r.on;
+        if (r.on) { this.state.morse = false; clearTimeout(this.#morseTimer); }
+        clearTimeout(this.#findTimer);
+        if (r.on) this.#findTimer = setTimeout(() => { // the light stops Find after 2 minutes
+          this.state.find = false; this.#emit({ type: "event", source: "find", action: "timeout" }); this.#emit(this.#stateMsg());
+        }, 120000);
+        this.#emit(this.#stateMsg(id)); break;
+      case "morse":
+        if (r.on && this.state.find) return this.#err(id, "busy", "find is running; it has priority over Morse");
+        this.state.morse = !!r.on; this.#endMorseLater(); this.#emit(this.#stateMsg(id)); break;
+      case "chirp": this.#emit({ type: "ok", cmd: "chirp", id }); break;
+      case "factoryReset":
+        this.#reset(); this.#emit({ type: "ok", cmd: "factoryReset", id }); this.#emit(this.#stateMsg()); this.#emit(this.#settingsMsg());
+        for (let i = 0; i < 16; i++) this.#emit(this.#slotMsg(i));
+        break;
+      case "calibrate": case "test": case "pairing":
+        return this.#err(id, "usb_only", "the demo light has no battery or radio to set up");
+      default: this.#err(id, "unknown_cmd", `unknown command ${r.cmd}`);
+    }
+  }
+}
+
 // ------------------------------------------------------------ app state ---
 const transport = new Transport();
 const app = {
@@ -1035,6 +1209,7 @@ const app = {
   editingUntil: new Map(), lastPortInfo: null, lastBleDevice: null, retryGen: 0, nextId: 1, resetArmed: 0, forgetArmed: 0, passkey: null, sel: 0, animChips: true, padTarget: "c1",
 };
 
+const linkSuffix = () => transport.kind === "ble" ? " (Bluetooth)" : transport.kind === "demo" ? " (demo, no light)" : "";
 function setConn(kind, text) {
   ui.connDot.className = "dot " + kind;
   ui.connLabel.textContent = text;
@@ -1045,6 +1220,7 @@ function setConn(kind, text) {
   ui.connectBtn.classList.toggle("primary", !connected);
   ui.connectBtn.hidden = !connected && !("serial" in navigator);
   ui.bleBtn.hidden = connected || !("bluetooth" in navigator);
+  ui.demoBtn.hidden = connected;
   ui.controls.disabled = !(connected && app.hello && app.state && app.settings);
 }
 function editing(id) { return (app.editingUntil.get(id) ?? 0) > performance.now(); }
@@ -1252,6 +1428,31 @@ const MORSE = { A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "
   K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-", U: "..-", V: "...-",
   W: ".--", X: "-..-", Y: "-.--", Z: "--..", 0: "-----", 1: ".----", 2: "..---", 3: "...--", 4: "....-", 5: ".....",
   6: "-....", 7: "--...", 8: "---..", 9: "----." };
+// The light's Morse keying, element by element (firmware morse.cpp): dot 1 unit, dash 3, 1 between
+// symbols, 3 between letters, 7 between words and before repeating; one unit = 1200 / wpm ms.
+function morseTimeline(text, wpm) {
+  const els = [];
+  let lastLetter = false;
+  for (const ch of cleanMorse(text)) {
+    if (ch === " ") { if (lastLetter && els.length) els[els.length - 1] = [false, 7]; lastLetter = false; continue; }
+    const code = MORSE[ch];
+    if (!code) continue;
+    for (const sym of code) els.push([true, sym === "." ? 1 : 3], [false, 1]);
+    els[els.length - 1] = [false, 3];
+    lastLetter = true;
+  }
+  if (!els.length) return { els, unit: 100, total: 0 };
+  els[els.length - 1] = [false, 7];
+  const unit = 1200 / Math.min(25, Math.max(5, wpm));
+  return { els, unit, total: els.reduce((a, [, n]) => a + n, 0) * unit };
+}
+function morseLit(run, now, repeat) {
+  if (!run?.total) return false;
+  let t = now - run.t0;
+  if (t >= run.total) { if (!repeat) return false; t %= run.total; }
+  for (const [on, n] of run.els) { t -= n * run.unit; if (t < 0) return on; }
+  return false;
+}
 function renderMorseNote() {
   const c = cleanMorse(ui.morseText.value);
   ui.morseCode.textContent = c.split(" ").map((w) => [...w].map((ch) => MORSE[ch].replace(/-/g, "—").replace(/\./g, "·")).join("  ")).join("   /   ");
@@ -1332,7 +1533,7 @@ function renderStatus() {
   ui.layer.textContent = LAYER_NAMES[st.layer] ?? st.layer ?? "--";
   ui.autoOffIn.textContent = st.autoOffS ? fmtDuration(st.autoOffS) : st.usb ? "paused on USB" : "not counting";
   ui.temp.textContent = typeof st.tempC === "number" ? `${st.tempC.toFixed(1)} °C` : "--";
-  ui.linkKind.textContent = transport.kind === "ble" ? "Bluetooth" : transport.kind === "usb" ? "USB" : "--";
+  ui.linkKind.textContent = { ble: "Bluetooth", usb: "USB", demo: "Demo (pretend light)" }[transport.kind] ?? "--";
   ui.pinMv.textContent = typeof st.pinMv === "number" ? `${st.pinMv} mV (spread ${st.pinSpreadMv ?? "?"} mV)` : "--";
   ui.calInfo.textContent = Number.isInteger(st.calPoints) ? (st.calPoints ? `${st.calPoints}-point` : "board default") : "--";
   ui.bleCount.textContent = Number.isFinite(st.bleConnects) ? `${st.bleConnects} / ${st.bleDrops}` : "--";
@@ -1404,14 +1605,23 @@ function frame(now) {
   if (s && transport.open) {
     advance(now, s.look, anim);
     const layer = app.status?.layer;
+    const m = app.settings?.morse;
+    if (!s.morse) app.morseRun = null;
+    else if (!app.morseRun) app.morseRun = { t0: now, ...morseTimeline(m?.text ?? "", m?.wpm ?? 12) };
+    let pct = s.brightness;
     if (s.find) pixels = Array.from({ length: 6 }, (_, i) => (i % 2 === 0) !== (Math.floor(now / 333) % 2 === 1) ? [255, 0, 0, 0] : [0, 0, 0, 255]);
-    else if (s.morse || layer === "gauge" || layer === "flash") pixels = []; // can't mirror those timings: blank
+    else if (s.morse && (m?.light ?? true)) { // white chip keyed like the light (firmware morse.cpp), at least 50%
+      pixels = morseLit(app.morseRun, now, m?.repeat ?? true) ? Array(6).fill([0, 0, 0, 255]) : [];
+      pct = Math.max(pct, 50);
+    }
+    else if (layer === "gauge" || layer === "flash") pixels = []; // can't mirror those timings: blank
     else if (!s.power) pixels = [];
     else if (s.flashlight) pixels = Array(6).fill([0, 0, 0, 255]);
     else pixels = drawLook(s.look, anim);
-    level = 0.25 + 0.75 * (s.brightness / 100); // a screen can't go as dark as an LED, so compress
+    level = 0.25 + 0.75 * (pct / 100); // a screen can't go as dark as an LED, so compress
   }
   paintRing(ui.liveRing, pixels, level);
+  paintRing(ui.miniRing, pixels, level);
   if (app.animChips && transport.open) animateChips(now);
   requestAnimationFrame(frame);
 }
@@ -1471,7 +1681,7 @@ function handleLine(line) {
     case "error": toast(`Light says: ${msg.message ?? msg.code}`); break;
     default: break; // "ok", and types newer firmware may add
   }
-  if (app.hello) setConn("ok", `Connected${transport.kind === "ble" ? " (Bluetooth)" : ""} · fw ${app.hello.fw}`);
+  if (app.hello) setConn("ok", `Connected${linkSuffix()} · fw ${app.hello.fw}`);
 }
 
 function onEvent(e) {
@@ -1658,7 +1868,7 @@ async function connect(kind, target, quiet = false) {
   setConn("warn", kind === "ble" ? "Connecting over Bluetooth…" : "Connecting…");
   try {
     if (kind === "ble") await transport.openBle(target);
-    else await transport.openPort(target);
+    else await transport.openPort(target, kind);
   } catch (err) {
     app.connecting = false;
     setConn("bad", "Not connected");
@@ -1674,14 +1884,14 @@ async function connect(kind, target, quiet = false) {
     return false;
   }
   if (kind === "usb") app.lastPortInfo = target.getInfo();
-  else app.lastBleDevice = target;
+  else if (kind === "ble") app.lastBleDevice = target;
   setConn("warn", "Connected, waiting for the light…");
   try {
     await handshake();
     startTimers();
     if (app.hello.bleName !== undefined) send({ cmd: "calibrate", op: "get" }); // 0.5.1+ only
     if (kind === "usb" && typeof app.hello.passkey === "string") send({ cmd: "pairing", op: "get" }); // 0.6+
-    setConn("ok", `Connected${kind === "ble" ? " (Bluetooth)" : ""} · fw ${app.hello.fw}`);
+    setConn("ok", `Connected${linkSuffix()} · fw ${app.hello.fw}`);
     return true;
   } catch (err) {
     if (transport.open) {
@@ -1711,6 +1921,12 @@ async function onConnectClick() {
     return; // NotFoundError = the picker was cancelled
   }
   await connect("usb", port);
+}
+
+async function onDemoClick() {
+  app.retryGen++;
+  if (app.connecting) { toast("Still finishing the last connection attempt: try again in a few seconds."); return; }
+  if (await connect("demo", new DemoPort())) toast("Demo: a pretend light. Everything works; nothing leaves this page.");
 }
 
 async function onBleClick() {
@@ -1794,14 +2010,15 @@ function slider(el, out, fmt, onValue) {
 function wireControls() {
   ui.connectBtn.addEventListener("click", onConnectClick);
   ui.bleBtn.addEventListener("click", onBleClick);
-  for (const [tab, page] of [[ui.tabLight, ui.pageLight], [ui.tabSettings, ui.pageSettings]]) {
-    tab.addEventListener("click", () => {
-      for (const [t, p] of [[ui.tabLight, ui.pageLight], [ui.tabSettings, ui.pageSettings]]) {
-        t.setAttribute("aria-selected", String(t === tab));
-        p.hidden = p !== page;
-      }
-    });
-  }
+  ui.demoBtn.addEventListener("click", onDemoClick);
+  const showSettings = (on) => {
+    ui.pageSettings.hidden = !on;
+    ui.pageLight.hidden = on;
+    ui.cogBtn.setAttribute("aria-pressed", String(on));
+    window.scrollTo({ top: 0 });
+  };
+  ui.cogBtn.addEventListener("click", () => showSettings(ui.pageSettings.hidden));
+  ui.settingsDone.addEventListener("click", () => showSettings(false));
 
   ui.powerBtn.addEventListener("click", () => setLight({ power: !app.state?.power }, true));
   ui.flashBtn.addEventListener("click", () => setLight({ flashlight: !app.state?.flashlight, power: true }, true));
@@ -1979,6 +2196,7 @@ function initTheme() {
 function init() {
   initTheme();
   buildRing(ui.liveRing);
+  buildRing(ui.miniRing);
   wirePad();
   buildLists();
   buildSwatches();
@@ -1992,10 +2210,11 @@ function init() {
 
   const hasSerial = "serial" in navigator, hasBle = "bluetooth" in navigator;
   if (!hasSerial && !hasBle) {
-    ui.connectBtn.disabled = true;
-    showBanner(window.isSecureContext
+    ui.connectBtn.hidden = true;
+    showBanner((window.isSecureContext
       ? "This browser can't reach the light: it has neither Web Serial (USB) nor Web Bluetooth. Use desktop Chrome or Edge, or Bluefy on iPhone."
-      : "This page needs a secure address to reach the light: open the file directly in Chrome, serve it from localhost, or use its https address (see web/README.md).");
+      : "This page needs a secure address to reach the light: open the file directly in Chrome, serve it from localhost, or use its https address (see web/README.md).")
+      + " Or click Demo to try the page with a pretend light.");
     return;
   }
   if (!hasSerial) return; // Bluetooth only (e.g. Bluefy on iPhone): no USB events to watch
