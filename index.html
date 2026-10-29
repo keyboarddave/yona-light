@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Yona Light Control</title>
+<!-- Brand v1.2 icons (Design/brand/v1.2). The tab icon is inline so the page still works as a single file. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Crect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%2314171C%22/%3E%3Cg transform=%22translate%287 7%29 scale%280.86%29%22%3E%3Cpath d=%22M34 43.25 L50 60.75 L66 43.25 M50 60.75 L50 84.75 L70 84.75%22 fill=%22none%22 stroke=%22%23F2EEE6%22 stroke-width=%2210.2%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3Cline x1=%2225.95%22 y1=%2226.59%22 x2=%2220%22 y2=%2221.24%22 stroke=%22%23FFB13B%22 stroke-width=%2210%22 stroke-linecap=%22round%22/%3E%3Cline x1=%2250%22 y1=%2215.89%22 x2=%2250%22 y2=%227.89%22 stroke=%22%23FFB13B%22 stroke-width=%2210%22 stroke-linecap=%22round%22/%3E%3Cline x1=%2274.05%22 y1=%2226.59%22 x2=%2280%22 y2=%2221.24%22 stroke=%22%23FFB13B%22 stroke-width=%2210%22 stroke-linecap=%22round%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<meta name="theme-color" content="#14171C" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f2ee" media="(prefers-color-scheme: light)">
 <style>
   .passkey { font-variant-numeric: tabular-nums; letter-spacing: .12em; font-weight: 600; }
   :root {
@@ -39,12 +45,30 @@
   @media (max-width: 560px) {
     header { gap: 8px 10px; padding: 8px 12px; }
     header .conn { flex-basis: 100%; justify-content: flex-end; }
-    header .ident { flex: 1 1 0; }
+    /* Row 1: brand, then preview ring, battery, theme, cog pushed right. Row 2: connection status + link buttons.
+       display: contents lets the status line join the header's own flex rows. */
+    header .brand, header .ident { display: contents; }
+    header .bmark, header h1 { order: 0; }
+    header .ring.mini { margin-left: auto; }
+    header::after { content: ""; flex-basis: 100%; order: 1; }
+    header .connline { order: 2; flex: 1 1 0; min-width: 0; }
+    header .conn { order: 3; flex-basis: auto; }
     header .spacer { display: none; }
     header .conn button { padding: 6px 12px; }
     #connLabel { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   }
   header .spacer { flex: 1; }
+  /* Brand v1.2 in the header: the mark plus a one-line YONA LIGHT wordmark (Outfit 500, outlined). The stick and
+     YONA follow the text colour; the rays and LIGHT use lamp amber, deepened on the light theme to stay readable. */
+  :root { --brand-ray: #D98A12; }
+  :root[data-theme="dark"] { --brand-ray: #FFB13B; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --brand-ray: #FFB13B; } }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .bmark { height: 40px; width: auto; flex: none; color: var(--ink); }
+  .bword { display: block; height: 13px; width: auto; max-width: 100%; color: var(--ink); }
+  .bmark .r { stroke: var(--brand-ray); } .bword .r { fill: var(--brand-ray); }
+  header h1 { padding: 2px 0 5px; }
+  .connline { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
   .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
   #connLabel { color: var(--muted); font-size: 13.5px; }
@@ -52,8 +76,11 @@
              border-radius: 999px; background: var(--chip); border: 1px solid var(--line); }
   #batPill.low { color: var(--bad); border-color: var(--bad); }
   /* Live preview in the sticky header: the output stays in view wherever the page is scrolled. */
-  .ring.mini { width: 44px; height: 44px; box-shadow: inset 0 0 0 2px var(--line); }
-  .ring.mini span { width: 9px; height: 9px; border-radius: 30%; }
+  .ring.mini { width: 60px; height: 60px; box-shadow: inset 0 0 0 2px var(--line); flex: none; }
+  .ring.mini span { width: 12px; height: 12px; border-radius: 30%; }
+  @media (max-width: 520px) { .ring.mini { width: 52px; height: 52px; } .ring.mini span { width: 10px; height: 10px; } .bmark { height: 36px; } .bword { height: 12px; } }
+  /* Narrow phones: the mark alone, as the wordmark would be too small to read beside the controls. */
+  @media (max-width: 440px) { header h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
   #cogBtn { padding: 6px 9px; line-height: 0; }
   #cogBtn svg { width: 20px; height: 20px; }
   #cogBtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -203,12 +230,15 @@
 </head>
 <body>
 <header>
-  <div class="ring mini" id="miniRing" role="img" aria-label="Live preview of the light" title="What the light is showing"></div>
-  <div class="ident">
-    <h1><span class="dot" id="connDot" aria-hidden="true"></span>Yona Light</h1>
-    <span id="connLabel">Not connected</span>
+  <div class="brand">
+    <svg class="bmark" viewBox="15.33 9.99 69.34 78.26" aria-hidden="true"><path d="M34 43.25 L50 60.75 L66 43.25 M50 60.75 L50 84.75 L70 84.75" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><line x1="25.27" y1="36.19" x2="18.08" y2="32.68" class="r" stroke-width="4.5" stroke-linecap="round"/><line x1="35.42" y1="24.92" x2="31.18" y2="18.13" class="r" stroke-width="4.5" stroke-linecap="round"/><line x1="50" y1="20.74" x2="50" y2="12.74" class="r" stroke-width="4.5" stroke-linecap="round"/><line x1="64.58" y1="24.92" x2="68.82" y2="18.13" class="r" stroke-width="4.5" stroke-linecap="round"/><line x1="74.73" y1="36.19" x2="81.92" y2="32.68" class="r" stroke-width="4.5" stroke-linecap="round"/></svg>
+    <div class="ident">
+      <h1><svg class="bword" viewBox="0 -10.14 101.33 10.29" role="img" aria-label="Yona Light"><path d="M3.99 0V-4.36L0.31 -10H2.21L4.81 -5.91L7.41 -10H9.29L5.63 -4.41V0Z M16.31 0.14Q15.24 0.14 14.31 -0.26Q13.39 -0.66 12.69 -1.36Q11.99 -2.07 11.59 -3.01Q11.2 -3.94 11.2 -5.01Q11.2 -6.09 11.59 -7.01Q11.99 -7.94 12.68 -8.65Q13.37 -9.36 14.29 -9.75Q15.21 -10.14 16.29 -10.14Q17.36 -10.14 18.28 -9.75Q19.2 -9.36 19.9 -8.65Q20.6 -7.94 20.99 -7.01Q21.39 -6.07 21.39 -5Q21.39 -3.93 20.99 -2.99Q20.6 -2.06 19.91 -1.36Q19.21 -0.66 18.29 -0.26Q17.37 0.14 16.31 0.14ZM16.29 -1.43Q17.3 -1.43 18.06 -1.89Q18.83 -2.34 19.26 -3.15Q19.7 -3.96 19.7 -5.01Q19.7 -5.8 19.45 -6.45Q19.2 -7.1 18.74 -7.58Q18.29 -8.06 17.66 -8.31Q17.04 -8.57 16.29 -8.57Q15.29 -8.57 14.52 -8.12Q13.76 -7.67 13.32 -6.87Q12.89 -6.07 12.89 -5.01Q12.89 -4.23 13.14 -3.56Q13.39 -2.9 13.84 -2.43Q14.29 -1.96 14.91 -1.69Q15.54 -1.43 16.29 -1.43Z M24.91 0V-10H26.06L31.34 -3.1V-10H32.99V0H31.84L26.56 -6.9V0Z M36.27 0 40.39 -10H41.53L45.61 0H43.84L43.09 -1.93H38.79L38.01 0ZM42.51 -3.36 40.94 -7.34 39.36 -3.36Z" fill="currentColor"/><path d=" M53.61 0V-10H55.26V-1.5H59.97V0Z M63.33 0V-10H64.97V0Z M73.51 0.14Q72.49 0.14 71.57 -0.26Q70.66 -0.66 69.97 -1.36Q69.29 -2.07 68.89 -3.01Q68.5 -3.94 68.5 -5.01Q68.5 -6.09 68.89 -7.01Q69.29 -7.94 69.98 -8.65Q70.67 -9.36 71.61 -9.75Q72.54 -10.14 73.63 -10.14Q74.81 -10.14 75.83 -9.69Q76.84 -9.23 77.53 -8.39L76.41 -7.27Q75.97 -7.9 75.23 -8.24Q74.49 -8.57 73.63 -8.57Q72.6 -8.57 71.82 -8.12Q71.04 -7.67 70.61 -6.87Q70.19 -6.07 70.19 -5.01Q70.19 -3.96 70.62 -3.15Q71.06 -2.34 71.8 -1.89Q72.54 -1.43 73.49 -1.43Q74.49 -1.43 75.21 -1.79Q75.93 -2.16 76.31 -2.89Q76.56 -3.33 76.64 -3.91H73.46V-5.41H78.4V-5.19Q78.4 -3.4 77.76 -2.21Q77.13 -1.03 76.03 -0.44Q74.93 0.14 73.51 0.14Z M81.89 0V-10H83.53V-5.93H88.24V-10H89.89V0H88.24V-4.43H83.53V0Z M96.43 0V-8.5H93.17V-10H101.33V-8.5H98.07V0Z" class="r"/></svg></h1>
+      <span class="connline"><span class="dot" id="connDot" aria-hidden="true"></span><span id="connLabel">Not connected</span></span>
+    </div>
   </div>
   <span class="spacer"></span>
+  <div class="ring mini" id="miniRing" role="img" aria-label="Live preview of the light" title="What the light is showing"></div>
   <span id="batPill" title="Battery">--</span>
   <button id="themeBtn" type="button" title="Appearance: follow the system, or force dark or light">Auto</button>
   <button id="cogBtn" type="button" aria-pressed="false" aria-label="Settings" title="Settings">
@@ -501,7 +531,7 @@ const PROTOCOL_VERSION = 2;
 const USB_FILTERS = [{ usbVendorId: 0x303a }, { usbVendorId: 0x2886 }]; // Espressif native USB, Seeed
 // This page's own version: bump with every change, so it's easy to tell which copy
 // (the folder's or the one published on GitHub) a browser is running.
-const PAGE_VERSION = "2.8";
+const PAGE_VERSION = "2.9";
 const HELLO_TIMEOUT_MS = 2500;
 const HELLO_ATTEMPTS = 3;
 // Bluetooth with pairing (fw 0.6+): the first write can sit behind the system's
